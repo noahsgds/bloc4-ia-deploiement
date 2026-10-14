@@ -6,3 +6,8 @@ target-version = "py311"   # même version de Python que le projet
 [tool.ruff.lint]
 # E/W : style PEP 8 · F : erreurs (variables non définies, imports inutiles) · I : ordre des imports
 select = ["E", "W", "F", "I"]
+
+# Configuration de pytest : permet aux tests d'importer le dossier src/
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
