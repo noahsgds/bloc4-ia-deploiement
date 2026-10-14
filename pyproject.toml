@@ -1,0 +1,8 @@
+# Configuration de ruff : vérification du style et des erreurs courantes du code Python
+[tool.ruff]
+line-length = 100          # longueur maximale d'une ligne
+target-version = "py311"   # même version de Python que le projet
+
+[tool.ruff.lint]
+# E/W : style PEP 8 · F : erreurs (variables non définies, imports inutiles) · I : ordre des imports
+select = ["E", "W", "F", "I"]
