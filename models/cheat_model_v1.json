@@ -1,0 +1,87 @@
+{
+  "version": "v1",
+  "created_at": "2026-10-14T16:12:35+00:00",
+  "model_name": "gradient_boosting",
+  "threshold": 0.6922178881109246,
+  "features": [
+    "accuracy",
+    "headshot_rate",
+    "kd_ratio",
+    "kills_per_min",
+    "damage_per_round",
+    "avg_reaction_ms",
+    "kills_through_smoke_ratio",
+    "rank_tier",
+    "account_age_days",
+    "hours_played_total",
+    "reports_received",
+    "input_device",
+    "platform"
+  ],
+  "seed": 42,
+  "git_commit": "35d9e11",
+  "sklearn_version": "1.9.1",
+  "data": {
+    "fingerprint": "7918e99aef9199a7",
+    "n_rows": 50000,
+    "n_train": 29816,
+    "n_validation": 10187,
+    "n_test": 9997,
+    "period": [
+      "2026-08-01",
+      "2026-09-29"
+    ]
+  },
+  "validation_metrics": {
+    "regression_logistique": {
+      "roc_auc": 0.8793,
+      "pr_auc": 0.5824,
+      "precision_top": 0.9216,
+      "recall": 0.5445,
+      "false_positive_rate": 0.0093,
+      "threshold": 0.8259,
+      "n_samples": 10187,
+      "cheater_rate": 0.0276
+    },
+    "gradient_boosting": {
+      "roc_auc": 0.88,
+      "pr_auc": 0.5905,
+      "precision_top": 0.9706,
+      "recall": 0.5516,
+      "false_positive_rate": 0.0098,
+      "threshold": 0.6922,
+      "n_samples": 10187,
+      "cheater_rate": 0.0276
+    }
+  },
+  "test_metrics": {
+    "roc_auc": 0.8702,
+    "pr_auc": 0.5852,
+    "precision_top": 0.94,
+    "recall": 0.568,
+    "false_positive_rate": 0.013,
+    "threshold": 0.6922,
+    "n_samples": 9997,
+    "cheater_rate": 0.0294
+  },
+  "baseline_test_metrics": {
+    "roc_auc": 0.6829,
+    "pr_auc": 0.1142,
+    "precision_top": 0.3,
+    "recall": 0.102,
+    "false_positive_rate": 0.006,
+    "threshold": 4.0,
+    "n_samples": 9997,
+    "cheater_rate": 0.0294
+  },
+  "acceptance": {
+    "passed": true,
+    "details": {
+      "roc_auc": true,
+      "pr_auc": true,
+      "precision_top": true,
+      "recall": true,
+      "false_positive_rate": true
+    }
+  }
+}
