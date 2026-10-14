@@ -41,7 +41,7 @@ def _new_uuid(rng: np.random.Generator) -> str:
 
 
 def generate_players(n_players: int, rng: np.random.Generator) -> pd.DataFrame:
-    """Crée les joueurs et leurs caractéristiques stables (qui ne changent pas d'un match à l'autre)."""
+    """Crée les joueurs et leurs caractéristiques stables (identiques d'un match à l'autre)."""
     is_cheater = rng.random(n_players) < CHEATER_RATE
 
     # Plateforme : 70 % PC, 30 % console.
@@ -57,11 +57,23 @@ def generate_players(n_players: int, rng: np.random.Generator) -> pd.DataFrame:
     # Rang de 1 (débutant) à 8 (élite), la plupart des joueurs au milieu.
     rank_tier = np.clip(np.round(rng.normal(4.5, 1.6, n_players)), 1, 8).astype(int)
 
+    # Talent individuel : à rang égal, certains joueurs honnêtes sont nettement meilleurs.
+    # 3 % de "prodiges" ont des statistiques exceptionnelles SANS tricher : le modèle
+    # doit apprendre à ne pas les confondre avec des tricheurs.
+    talent = rng.normal(0, 0.10, n_players) + 0.35 * (rng.random(n_players) < 0.03)
+
+    # Chaque tricheur a son propre style :
+    # - un type de triche fixe : 70 % aimbot (visée automatique),
+    #   30 % wallhack (voir à travers les murs) ;
+    # - une "force" de triche entre 0.3 (discret) et 1.0 (flagrant).
+    cheat_type = np.where(rng.random(n_players) < 0.70, "aimbot", "wallhack")
+    cheat_strength = np.where(is_cheater, rng.uniform(0.3, 1.0, n_players), 0.0)
+
     # Les tricheurs créent souvent de nouveaux comptes après un bannissement :
-    # leurs comptes sont plus récents en moyenne.
+    # leurs comptes sont plus récents en moyenne (beaucoup de comptes honnêtes sont récents aussi).
     account_age_days = np.where(
         is_cheater,
-        rng.exponential(60, n_players),
+        rng.exponential(150, n_players),
         rng.exponential(400, n_players),
     ).astype(int)
     account_age_days = np.clip(account_age_days, 0, 5000)
@@ -87,6 +99,11 @@ def generate_players(n_players: int, rng: np.random.Generator) -> pd.DataFrame:
             "hours_played_total": hours_played_total,
             "age_band": age_band,
             "accessibility_mode": accessibility_mode,
+            # Colonnes internes à la simulation : elles ne sortent jamais du générateur
+            # (dans la réalité, on ne connaît ni le talent ni le style de triche).
+            "talent": talent,
+            "cheat_type": cheat_type,
+            "cheat_strength": cheat_strength,
         }
     )
 
@@ -106,45 +123,51 @@ def simulate_matches(
     rows = players.iloc[rng.integers(0, len(players), n_matches)].reset_index(drop=True)
     n = len(rows)
 
-    # Niveau de 0 (débutant) à 1 (élite), déduit du rang.
-    skill = (rows["rank_tier"].to_numpy() - 1) / 7
+    # Niveau : environ 0 (débutant) à 1 (élite), déduit du rang + talent individuel.
+    skill = (rows["rank_tier"].to_numpy() - 1) / 7 + rows["talent"].to_numpy()
     controller = (rows["input_device"] == "manette").to_numpy()
     accessibility = rows["accessibility_mode"].to_numpy()
     cheater = rows["is_cheater"].to_numpy() == 1
-    # Parmi les tricheurs : 70 % utilisent un aimbot (visée), 30 % un wallhack (voir à travers les murs).
-    aimbot = cheater & (rng.random(n) < 0.70)
-    wallhack = cheater & ~aimbot
-    boost = cheat_intensity  # 1.0 = triche flagrante, 0.4 = triche "humanisée"
+
+    # Un tricheur n'active pas sa triche à chaque match (environ 70 % des matchs) pour
+    # éviter d'être repéré. Sur les autres matchs, il joue "normalement" mais reste
+    # étiqueté tricheur : c'est un bruit d'étiquette réaliste.
+    cheating_now = cheater & (rng.random(n) < 0.70)
+    aimbot = cheating_now & (rows["cheat_type"].to_numpy() == "aimbot")
+    wallhack = cheating_now & (rows["cheat_type"].to_numpy() == "wallhack")
+    # Force effective de la triche sur ce match :
+    # force propre au tricheur x intensité globale (1.0 = flagrante, 0.4 = "humanisée").
+    boost = rows["cheat_strength"].to_numpy() * cheat_intensity * cheating_now
 
     # Précision : l'assistance à la visée de la manette augmente la précision des joueurs HONNÊTES.
     # C'est le piège d'équité n°1 du cahier des charges.
     accuracy = 0.18 + 0.12 * skill + 0.05 * controller + 0.15 * boost * aimbot
-    accuracy = accuracy + rng.normal(0, 0.03, n)
+    accuracy = accuracy + rng.normal(0, 0.04, n)
 
     # Tirs à la tête : la manette les rend plus rares, l'aimbot beaucoup plus fréquents.
     headshot_rate = 0.15 + 0.20 * skill - 0.03 * controller + 0.30 * boost * aimbot
-    headshot_rate = headshot_rate + rng.normal(0, 0.05, n)
+    headshot_rate = headshot_rate + rng.normal(0, 0.06, n)
 
     # Temps de réaction (ms) : un aimbot réagit de façon surhumaine.
     # Les joueurs en mode accessibilité ont des temps plus longs et plus variables :
     # c'est le piège d'équité n°2 (ne pas les confondre avec des anomalies de triche).
-    reaction_noise_sd = np.where(accessibility, 60, 25)
+    reaction_noise_sd = np.where(accessibility, 70, 35)
     avg_reaction_ms = (
         300 - 80 * skill + 15 * controller + 40 * accessibility - 130 * boost * aimbot
     ) + rng.normal(0, reaction_noise_sd, n)
 
     # Éliminations à travers la fumée : signal typique du wallhack.
-    kills_through_smoke_ratio = 0.02 + 0.15 * boost * wallhack + rng.normal(0, 0.015, n)
+    kills_through_smoke_ratio = 0.02 + 0.15 * boost * wallhack + rng.normal(0, 0.025, n)
 
-    # Ratio éliminations/morts : distribution "log-normale" (toujours positive, quelques valeurs hautes).
-    kd_ratio = (0.8 + 0.6 * skill) * (1 + 0.8 * boost * cheater) * rng.lognormal(0, 0.3, n)
-    kills_per_min = 0.5 + 0.4 * skill + 0.4 * boost * cheater + rng.normal(0, 0.1, n)
-    damage_per_round = 100 + 60 * skill + 50 * boost * cheater + rng.normal(0, 15, n)
+    # Ratio éliminations/morts : loi "log-normale" (toujours positive, quelques valeurs hautes).
+    kd_ratio = (0.8 + 0.6 * skill) * (1 + 0.8 * boost) * rng.lognormal(0, 0.3, n)
+    kills_per_min = 0.5 + 0.4 * skill + 0.4 * boost + rng.normal(0, 0.15, n)
+    damage_per_round = 100 + 60 * skill + 50 * boost + rng.normal(0, 20, n)
 
     # Signalements : les tricheurs en reçoivent plus, mais les très bons joueurs aussi
     # (les adversaires frustrés signalent). C'est pourquoi "trier par signalements" est une
     # mauvaise règle : elle confond talent et triche.
-    reports_lambda = 0.2 + 0.4 * kd_ratio + 1.5 * boost * cheater
+    reports_lambda = 0.2 + 0.4 * kd_ratio + 1.5 * boost
     reports_received = rng.poisson(reports_lambda)
 
     # Date du match : répartie sur 60 jours à partir de start_date.

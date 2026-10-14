@@ -75,3 +75,30 @@ NUMERIC_RANGES = {
 # Colonnes qui peuvent contenir des valeurs manquantes (perte de télémétrie).
 # Les autres doivent toujours être renseignées.
 NULLABLE_COLUMNS = {"avg_reaction_ms"}
+
+# --- Modèle et évaluation (cahier des charges, section 5) --------------------
+MODELS_DIR = ROOT_DIR / "models"
+
+# Capacité de revue : 300 fiches par jour sur environ 30 000 fiches (joueur, match)
+# scorées par jour, soit le 1 % le plus suspect.
+REVIEW_SHARE = 0.01
+
+# Plafond du taux de faux positifs : au plus 1 % des joueurs honnêtes signalés à tort.
+MAX_FALSE_POSITIVE_RATE = 0.01
+
+# Seuils d'acceptation du modèle (critère d'acceptation CA-01), mesurés sur le jeu de test.
+# Fixés sous la plage observée sur 5 graines (PR-AUC 0.52-0.62, rappel 0.44-0.57),
+# avec une marge pour absorber la variabilité due au faible nombre de tricheurs.
+ACCEPTANCE_THRESHOLDS = {
+    "roc_auc": 0.80,
+    "pr_auc": 0.45,
+    "precision_top": 0.80,
+    "recall": 0.40,
+}
+
+# Écart maximal de taux de faux positifs entre groupes (équité, critère CA-06).
+MAX_FPR_GAP = 0.02
+
+# Découpage des données : 60 % entraînement, 20 % validation, 20 % test.
+VALIDATION_SHARE = 0.20
+TEST_SHARE = 0.20
