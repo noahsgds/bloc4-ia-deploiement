@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "created_at": "2026-10-14T16:12:35+00:00",
+  "created_at": "2026-10-15T08:29:02+00:00",
   "model_name": "gradient_boosting",
   "threshold": 0.6922178881109246,
   "features": [
@@ -19,7 +19,7 @@
     "platform"
   ],
   "seed": 42,
-  "git_commit": "35d9e11",
+  "git_commit": "f839bff",
   "sklearn_version": "1.9.1",
   "data": {
     "fingerprint": "7918e99aef9199a7",
@@ -81,7 +81,229 @@
       "pr_auc": true,
       "precision_top": true,
       "recall": true,
-      "false_positive_rate": true
+      "false_positive_rate": true,
+      "fairness": true
     }
+  },
+  "fairness": {
+    "input_device": {
+      "rates": {
+        "clavier_souris": {
+          "n_honest": 6423,
+          "n_cheaters": 175,
+          "false_positive_rate": 0.0153,
+          "recall": 0.5486,
+          "reliable": true
+        },
+        "manette": {
+          "n_honest": 3280,
+          "n_cheaters": 119,
+          "false_positive_rate": 0.0085,
+          "recall": 0.5966,
+          "reliable": true
+        }
+      },
+      "fpr_gap": 0.0068,
+      "passed": true
+    },
+    "platform": {
+      "rates": {
+        "console": {
+          "n_honest": 2781,
+          "n_cheaters": 99,
+          "false_positive_rate": 0.009,
+          "recall": 0.5758,
+          "reliable": true
+        },
+        "pc": {
+          "n_honest": 6922,
+          "n_cheaters": 195,
+          "false_positive_rate": 0.0146,
+          "recall": 0.5641,
+          "reliable": true
+        }
+      },
+      "fpr_gap": 0.0056,
+      "passed": true
+    },
+    "accessibility_mode": {
+      "rates": {
+        "False": {
+          "n_honest": 9299,
+          "n_cheaters": 280,
+          "false_positive_rate": 0.0131,
+          "recall": 0.5714,
+          "reliable": true
+        },
+        "True": {
+          "n_honest": 404,
+          "n_cheaters": 14,
+          "false_positive_rate": 0.0099,
+          "recall": 0.5,
+          "reliable": true
+        }
+      },
+      "fpr_gap": 0.0032,
+      "passed": true
+    },
+    "age_band": {
+      "rates": {
+        "16-17": {
+          "n_honest": 778,
+          "n_cheaters": 46,
+          "false_positive_rate": 0.0077,
+          "recall": 0.5,
+          "reliable": true
+        },
+        "18-24": {
+          "n_honest": 4647,
+          "n_cheaters": 153,
+          "false_positive_rate": 0.0142,
+          "recall": 0.5686,
+          "reliable": true
+        },
+        "25-34": {
+          "n_honest": 2769,
+          "n_cheaters": 67,
+          "false_positive_rate": 0.0152,
+          "recall": 0.6567,
+          "reliable": true
+        },
+        "35+": {
+          "n_honest": 1509,
+          "n_cheaters": 28,
+          "false_positive_rate": 0.008,
+          "recall": 0.4643,
+          "reliable": true
+        }
+      },
+      "fpr_gap": 0.0075,
+      "passed": true
+    }
+  },
+  "explain_info": {
+    "reference_by_rank": {
+      "1": {
+        "accuracy": 0.194,
+        "headshot_rate": 0.135,
+        "kd_ratio": 0.8,
+        "kills_per_min": 0.5,
+        "damage_per_round": 100.4,
+        "avg_reaction_ms": 307.0,
+        "kills_through_smoke_ratio": 0.019,
+        "rank_tier": 1.0,
+        "account_age_days": 207.0,
+        "hours_played_total": 212.3,
+        "reports_received": 0.0
+      },
+      "2": {
+        "accuracy": 0.214,
+        "headshot_rate": 0.17,
+        "kd_ratio": 0.89,
+        "kills_per_min": 0.56,
+        "damage_per_round": 109.7,
+        "avg_reaction_ms": 294.2,
+        "kills_through_smoke_ratio": 0.021,
+        "rank_tier": 2.0,
+        "account_age_days": 291.0,
+        "hours_played_total": 249.6,
+        "reports_received": 0.0
+      },
+      "3": {
+        "accuracy": 0.232,
+        "headshot_rate": 0.2,
+        "kd_ratio": 0.98,
+        "kills_per_min": 0.62,
+        "damage_per_round": 117.4,
+        "avg_reaction_ms": 282.1,
+        "kills_through_smoke_ratio": 0.02,
+        "rank_tier": 3.0,
+        "account_age_days": 259.0,
+        "hours_played_total": 212.6,
+        "reports_received": 0.0
+      },
+      "4": {
+        "accuracy": 0.248,
+        "headshot_rate": 0.226,
+        "kd_ratio": 1.06,
+        "kills_per_min": 0.67,
+        "damage_per_round": 125.8,
+        "avg_reaction_ms": 271.1,
+        "kills_through_smoke_ratio": 0.02,
+        "rank_tier": 4.0,
+        "account_age_days": 275.0,
+        "hours_played_total": 215.8,
+        "reports_received": 0.0
+      },
+      "5": {
+        "accuracy": 0.266,
+        "headshot_rate": 0.254,
+        "kd_ratio": 1.14,
+        "kills_per_min": 0.73,
+        "damage_per_round": 134.4,
+        "avg_reaction_ms": 259.9,
+        "kills_through_smoke_ratio": 0.02,
+        "rank_tier": 5.0,
+        "account_age_days": 259.0,
+        "hours_played_total": 212.8,
+        "reports_received": 0.0
+      },
+      "6": {
+        "accuracy": 0.284,
+        "headshot_rate": 0.284,
+        "kd_ratio": 1.23,
+        "kills_per_min": 0.79,
+        "damage_per_round": 144.1,
+        "avg_reaction_ms": 248.5,
+        "kills_through_smoke_ratio": 0.02,
+        "rank_tier": 6.0,
+        "account_age_days": 282.0,
+        "hours_played_total": 238.1,
+        "reports_received": 1.0
+      },
+      "7": {
+        "accuracy": 0.3,
+        "headshot_rate": 0.312,
+        "kd_ratio": 1.31,
+        "kills_per_min": 0.84,
+        "damage_per_round": 151.8,
+        "avg_reaction_ms": 236.2,
+        "kills_through_smoke_ratio": 0.019,
+        "rank_tier": 7.0,
+        "account_age_days": 231.0,
+        "hours_played_total": 191.1,
+        "reports_received": 1.0
+      },
+      "8": {
+        "accuracy": 0.315,
+        "headshot_rate": 0.343,
+        "kd_ratio": 1.41,
+        "kills_per_min": 0.9,
+        "damage_per_round": 160.0,
+        "avg_reaction_ms": 227.55,
+        "kills_through_smoke_ratio": 0.019,
+        "rank_tier": 8.0,
+        "account_age_days": 240.0,
+        "hours_played_total": 186.4,
+        "reports_received": 1.0
+      }
+    },
+    "background_mean": [
+      0.2597,
+      0.243404,
+      1.164483,
+      0.70784,
+      130.99506,
+      265.342742,
+      0.023568,
+      4.489402,
+      393.03203,
+      352.458938,
+      0.686712,
+      0.654548,
+      0.345452,
+      0.300174,
+      0.699826
+    ]
   }
 }
