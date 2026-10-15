@@ -6,3 +6,13 @@ target-version = "py311"   # même version de Python que le projet
 [tool.ruff.lint]
 # E/W : style PEP 8 · F : erreurs (variables non définies, imports inutiles) · I : ordre des imports
 select = ["E", "W", "F", "I"]
+
+# Configuration de pytest : permet aux tests d'importer le dossier src/
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+# Dans les notebooks, sys.path doit être modifié AVANT d'importer src/ : l'import
+# "en milieu de cellule" (règle E402) y est donc normal et autorisé.
+[tool.ruff.lint.per-file-ignores]
+"notebooks/*.ipynb" = ["E402"]

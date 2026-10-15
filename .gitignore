@@ -10,10 +10,10 @@ __pycache__/
 .env
 
 # Données générées (reproductibles avec le générateur)
-data/
+/data/
 
 # Rapports générés automatiquement
-monitoring/reports/
+/monitoring/reports/
 
 # Fichiers système macOS
 .DS_Store

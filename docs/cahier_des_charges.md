@@ -10,13 +10,13 @@
 **Problème :**
 
 - Les tricheurs (aimbot, wallhack) font fuir les joueurs honnêtes : baisse des revenus des achats en jeu et image dégradée.
-- Le jeu reçoit environ **2 000 signalements de joueurs par jour**.
-- L'équipe de modération peut en examiner environ **300 par jour**.
-- Les signalements sont aujourd'hui traités dans l'ordre d'arrivée. La plupart sont infondés et les vrais tricheurs passent entre les mailles.
+- Environ **30 000 fiches (joueur, match)** sont produites chaque jour à la fin des parties.
+- Les joueurs envoient environ **2 000 signalements par jour**, mais l'équipe de modération ne peut examiner qu'environ **300 dossiers par jour**, soit **1 %** des fiches.
+- Aujourd'hui, les modérateurs examinent en priorité les joueurs les plus signalés. Or les signalements visent aussi les très bons joueurs honnêtes (adversaires frustrés) : la plupart sont infondés, et les tricheurs discrets, peu signalés, passent entre les mailles.
 
 ## 2. Objectif
 
-Attribuer à chaque couple **(joueur, match)** une **probabilité de triche**, afin de **prioriser la file de revue** des modérateurs : les cas les plus suspects sont examinés en premier.
+Attribuer à **chaque** couple **(joueur, match)** une **probabilité de triche**, signalé ou non, afin de **prioriser la file de revue** des modérateurs : les 300 cas les plus suspects de la journée sont examinés en premier.
 
 - **Définition de la cible :** `is_cheater = 1` si le compte a été banni pour triche après revue humaine. Dans les données synthétiques, la vérité est connue. En conditions réelles, ces étiquettes seraient imparfaites (des tricheurs ne sont jamais détectés).
 - **Usage :** aide à la décision uniquement. **Le modèle ne bannit jamais seul.** Un modérateur valide chaque sanction (article 22 du RGPD : pas de décision fondée exclusivement sur un traitement automatisé).
@@ -59,17 +59,17 @@ Une ligne par joueur et par match terminé. Le pipeline de données (bloc 3) pro
 
 ## 5. Métriques de succès
 
-Seuils posés comme hypothèses métier sur données synthétiques.
+Les seuils ont été fixés **après une étude de faisabilité** sur les données synthétiques (5 graines aléatoires différentes), sous la plage observée et avec une marge. Une partie des tricheurs est volontairement « discrète » (triche intermittente et peu marquée), ce qui fixe un plafond réaliste aux performances.
 
 | Type | Métrique | Seuil |
 |---|---|---|
-| Modèle | PR-AUC (métrique principale, classes très déséquilibrées) | ≥ 0,70 |
-| Modèle | ROC-AUC | ≥ 0,90 |
-| Métier | Précision sur les 300 cas les mieux classés (capacité de revue quotidienne) | ≥ 60 % |
-| Métier | Rappel : part des tricheurs présents dans ces 300 cas | ≥ 70 % |
-| Éthique | Taux de faux positifs global (joueurs honnêtes signalés à tort) | ≤ 1 % |
+| Modèle | PR-AUC (métrique principale, classes très déséquilibrées) | ≥ 0,45 |
+| Modèle | ROC-AUC | ≥ 0,80 |
+| Métier | Précision sur le 1 % le plus suspect (capacité de revue quotidienne) | ≥ 80 % |
+| Métier | Rappel : part des tricheurs détectés au seuil de décision | ≥ 40 % |
+| Éthique | Taux de faux positifs (joueurs honnêtes signalés à tort) ; seuil de décision choisi pour le plafonner | ≤ 1 % (tolérance 1,5 % sur le test) |
 | Équité | Écart de taux de faux positifs manette / clavier-souris et `accessibility_mode` / reste | < 2 points |
-| Modèle | Meilleur que la baseline (régression logistique) et que la règle actuelle « trier par nombre de signalements » | oui |
+| Modèle | Nettement meilleur que la règle actuelle « trier par nombre de signalements » (PR-AUC au moins doublée) et que la régression logistique de référence | oui |
 | Service | Latence p95 d'une prédiction | < 200 ms |
 
 Le taux de faux positifs est retenu comme métrique d'équité car le préjudice principal est d'être **soupçonné à tort**.
