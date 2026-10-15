@@ -175,3 +175,24 @@ class Health(BaseModel):
     model_loaded: bool
     model_version: str | None
     database: Literal["postgres", "memoire"]
+
+
+class ValidationRequest(BaseModel):
+    """Profils bruts importés (par exemple depuis un CSV) à vérifier avant scoring."""
+
+    rows: list[dict] = Field(min_length=1, max_length=MAX_BATCH_SIZE)
+
+
+class RowValidation(BaseModel):
+    """Résultat de validation d'une ligne : conforme ou liste des erreurs en français."""
+
+    row: int = Field(description="Numéro de la ligne (1 = première ligne de données)")
+    valid: bool
+    errors: list[str]
+
+
+class ValidationReport(BaseModel):
+    total: int
+    valid_count: int
+    invalid_count: int
+    rows: list[RowValidation]

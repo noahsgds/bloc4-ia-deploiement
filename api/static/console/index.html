@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sentinel — Console de modération</title>
+  <meta name="description" content="Console de modération anti-triche d'Arena Strike : import, file de revue, fiches joueurs et santé du modèle.">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Aller au contenu principal</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="reticle" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="13" />
+        <circle cx="20" cy="20" r="3" class="dot" />
+        <path d="M20 2v9M20 29v9M2 20h9M29 20h9" />
+      </svg>
+      <div>
+        <p class="wordmark">Sentinel</p>
+        <p class="tagline">Console de modération · Arena Strike</p>
+      </div>
+    </div>
+    <div class="session" id="session" hidden>
+      <p class="status-pill" id="status-pill"><span class="status-dot" aria-hidden="true"></span><span id="status-text">API connectée</span></p>
+      <p class="model-chip">Modèle <strong id="model-version">—</strong></p>
+      <button type="button" class="btn btn-ghost" id="logout">Se déconnecter</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="Sections de la console" hidden>
+    <button type="button" class="tab" data-target="import" aria-current="page"><span class="tab-num">01</span>Importer</button>
+    <button type="button" class="tab" data-target="queue"><span class="tab-num">02</span>File de revue</button>
+    <button type="button" class="tab" data-target="health"><span class="tab-num">03</span>Santé du modèle</button>
+  </nav>
+
+  <main id="main" tabindex="-1">
+
+    <!-- Connexion -->
+    <section id="login" class="panel login" aria-labelledby="login-title">
+      <h1 id="login-title">Accès modérateur</h1>
+      <p class="lead">Saisissez la clé d'API de Sentinel. Elle est gardée uniquement pour cet onglet et oubliée à sa fermeture.</p>
+      <form id="login-form" class="stack" novalidate>
+        <label for="api-key">Clé d'API</label>
+        <input id="api-key" name="api-key" type="password" autocomplete="off" required aria-describedby="login-error">
+        <p id="login-error" class="field-error" role="alert"></p>
+        <button type="submit" class="btn btn-primary">Se connecter</button>
+      </form>
+    </section>
+
+    <!-- 01 Import -->
+    <section id="import" class="view" aria-labelledby="import-title" hidden>
+      <header class="view-head">
+        <h1 id="import-title"><span class="eyebrow">01</span>Importer des profils</h1>
+        <p class="lead">Chargez un fichier CSV de fiches de fin de match. Chaque ligne est vérifiée par l'API avant toute analyse : les lignes non conformes sont expliquées et écartées.</p>
+      </header>
+
+      <div class="import-grid">
+        <div class="dropzone" id="dropzone">
+          <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path d="M24 32V10M15 19l9-9 9 9M8 30v8h32v-8" /></svg>
+          <p><strong>Déposez un fichier CSV ici</strong></p>
+          <p class="muted">ou</p>
+          <label for="file-input" class="btn btn-primary">Choisir un fichier</label>
+          <input id="file-input" type="file" accept=".csv,text/csv" class="visually-hidden">
+          <button type="button" class="btn btn-ghost" id="load-sample">Utiliser le fichier d'exemple</button>
+        </div>
+
+        <aside class="panel format-help" aria-labelledby="format-title">
+          <h2 id="format-title">Format attendu</h2>
+          <p>Une ligne par joueur et par match, séparateur virgule, avec les colonnes&nbsp;:</p>
+          <p class="mono small" id="expected-columns"></p>
+          <p class="muted small">Le temps de réaction peut être vide (perte de télémétrie). L'âge et l'option d'accessibilité ne doivent <strong>pas</strong> être envoyés&nbsp;: Sentinel ne les collecte pas.</p>
+        </aside>
+      </div>
+
+      <div id="validation" hidden>
+        <h2 class="section-title">Résultat de la validation</h2>
+        <div class="tiles">
+          <div class="tile"><p class="tile-label">Lignes lues</p><p class="tile-value" id="v-total">0</p></div>
+          <div class="tile tile-ok"><p class="tile-label">Conformes</p><p class="tile-value" id="v-valid">0</p></div>
+          <div class="tile tile-ko"><p class="tile-label">Rejetées</p><p class="tile-value" id="v-invalid">0</p></div>
+        </div>
+        <div id="invalid-block" hidden>
+          <table class="data-table">
+            <caption>Lignes rejetées et motifs</caption>
+            <thead><tr><th scope="col">Ligne</th><th scope="col">Motifs du rejet</th></tr></thead>
+            <tbody id="invalid-rows"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-primary btn-lg" id="analyze">Analyser les profils conformes</button>
+      </div>
+    </section>
+
+    <!-- 02 File de revue -->
+    <section id="queue" class="view" aria-labelledby="queue-title" hidden>
+      <header class="view-head">
+        <h1 id="queue-title"><span class="eyebrow">02</span>File de revue</h1>
+        <p class="lead">Fiches triées de la plus à la moins suspecte. Le score sert à <strong>prioriser</strong> l'examen&nbsp;: ce n'est ni une probabilité ni une preuve. Toute sanction relève d'un modérateur.</p>
+      </header>
+
+      <p class="empty" id="queue-empty">Aucune fiche analysée pour l'instant. Commencez par <button type="button" class="link-btn" data-goto="import">importer des profils</button>.</p>
+
+      <div id="queue-content" hidden>
+        <div class="tiles">
+          <div class="tile"><p class="tile-label">Fiches analysées</p><p class="tile-value" id="q-total">0</p></div>
+          <div class="tile tile-ko"><p class="tile-label">Signalées (au-dessus du seuil)</p><p class="tile-value" id="q-flagged">0</p></div>
+          <div class="tile"><p class="tile-label">Décisions prises</p><p class="tile-value" id="q-decided">0</p></div>
+        </div>
+
+        <figure class="chart-card">
+          <figcaption>Répartition des scores de suspicion <span class="muted">— trait vertical : seuil de décision</span></figcaption>
+          <div id="score-histogram" class="chart"></div>
+        </figure>
+
+        <div class="filters" role="group" aria-label="Filtres de la file">
+          <label for="filter-priority">Priorité</label>
+          <select id="filter-priority">
+            <option value="">Toutes</option>
+            <option value="haute">Haute</option>
+            <option value="moyenne">Moyenne</option>
+            <option value="basse">Basse</option>
+          </select>
+          <label for="filter-search">Joueur</label>
+          <input id="filter-search" type="search" placeholder="Début de l'identifiant">
+          <p class="muted small" id="filter-count" aria-live="polite"></p>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table queue-table">
+            <caption class="visually-hidden">File de revue triée par score de suspicion décroissant</caption>
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Joueur</th>
+                <th scope="col">Score</th>
+                <th scope="col">Priorité</th>
+                <th scope="col">Raison principale</th>
+                <th scope="col">Décision</th>
+                <th scope="col"><span class="visually-hidden">Action</span></th>
+              </tr>
+            </thead>
+            <tbody id="queue-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 Santé du modèle -->
+    <section id="health" class="view" aria-labelledby="health-title" hidden>
+      <header class="view-head">
+        <h1 id="health-title"><span class="eyebrow">03</span>Santé du modèle</h1>
+        <p class="lead">Performances mesurées sur le jeu de test, comparées à la règle actuelle (trier par nombre de signalements), et audit d'équité.</p>
+      </header>
+
+      <dl class="id-card" id="model-card"></dl>
+
+      <div class="health-grid">
+        <figure class="chart-card">
+          <figcaption>Sentinel face à la règle des signalements</figcaption>
+          <div id="metrics-chart" class="chart"></div>
+          <details><summary>Voir les données</summary><table class="data-table compact" id="metrics-table"></table></details>
+        </figure>
+        <figure class="chart-card">
+          <figcaption>Équité : écart de faux positifs entre groupes <span class="muted">— limite 2 points</span></figcaption>
+          <div id="fairness-chart" class="chart"></div>
+          <details><summary>Voir les données</summary><table class="data-table compact" id="fairness-table"></table></details>
+        </figure>
+      </div>
+
+      <h2 class="section-title">Critères d'acceptation</h2>
+      <ul class="checklist" id="acceptance"></ul>
+
+      <h2 class="section-title">Dérive des données</h2>
+      <p class="muted">Le suivi de la dérive (Evidently) sera branché ici à l'étape de monitoring.</p>
+    </section>
+  </main>
+
+  <!-- Fiche joueur -->
+  <dialog id="player-dialog" aria-labelledby="dlg-title">
+    <form method="dialog" class="dlg-close-form"><button class="icon-btn" aria-label="Fermer la fiche">✕</button></form>
+    <header class="dlg-head">
+      <p class="eyebrow">Fiche joueur</p>
+      <h2 id="dlg-title" class="mono"></h2>
+      <p id="dlg-summary"></p>
+    </header>
+    <div class="dlg-grid">
+      <section aria-labelledby="dlg-reasons-title">
+        <h3 id="dlg-reasons-title">Pourquoi ce score&nbsp;?</h3>
+        <ol class="reasons" id="dlg-reasons"></ol>
+        <h3>Statistiques du match</h3>
+        <table class="data-table compact"><tbody id="dlg-stats"></tbody></table>
+      </section>
+      <section aria-labelledby="dlg-decision-title">
+        <h3 id="dlg-decision-title">Décision du modérateur</h3>
+        <p class="notice">Le modèle ne sanctionne jamais seul. Vérifiez la rediffusion du match avant de décider (RGPD, article 22).</p>
+        <form id="decision-form" class="stack">
+          <fieldset>
+            <legend>Décision</legend>
+            <label class="radio"><input type="radio" name="decision" value="triche_confirmee" required> Triche confirmée</label>
+            <label class="radio"><input type="radio" name="decision" value="innocente"> Innocenté</label>
+            <label class="radio"><input type="radio" name="decision" value="a_approfondir"> À approfondir</label>
+          </fieldset>
+          <label for="moderator">Identifiant du modérateur</label>
+          <input id="moderator" name="moderator" required maxlength="50" autocomplete="username">
+          <label for="comment">Commentaire <span class="muted">(facultatif)</span></label>
+          <textarea id="comment" name="comment" rows="3" maxlength="1000"></textarea>
+          <p class="field-error" id="decision-error" role="alert"></p>
+          <button type="submit" class="btn btn-primary">Enregistrer la décision</button>
+        </form>
+      </section>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <footer class="footer">
+    <p>Aide à la décision — aucune sanction automatique. Données synthétiques, projet de certification.</p>
+  </footer>
+</body>
+</html>

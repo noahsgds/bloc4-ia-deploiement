@@ -10,7 +10,7 @@ import math
 import pandas as pd
 
 from src.config import FEATURES, MODELS_DIR
-from src.explain import explain
+from src.explain import FEATURE_LABELS, explain
 from src.train import load_champion
 
 
@@ -96,4 +96,6 @@ class ModelService:
             "fairness_fpr_gaps": fairness_gaps,
             "acceptance": self.metadata["acceptance"],
             "data": self.metadata["data"],
+            # Libellés français des variables, pour l'affichage dans la console.
+            "feature_labels": {name: label for name, (label, _, _) in FEATURE_LABELS.items()},
         }

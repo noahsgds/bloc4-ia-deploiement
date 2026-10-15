@@ -222,3 +222,62 @@ def test_latence_api_p95_sous_200_ms(client, payloads):
         client.post("/predict", json=payload, headers=HEADERS)
         durations.append((time.perf_counter() - start) * 1000)
     assert np.percentile(durations, 95) < 200
+
+
+# --- Validation d'un import et console ------------------------------------------------
+
+
+def test_validation_ligne_par_ligne(client, payloads):
+    """Chaque ligne est jugée séparément, avec des motifs de rejet en français."""
+    as_csv = {k: ("" if v is None else str(v)) for k, v in payloads[0].items()}
+    rows = [
+        as_csv,
+        {**as_csv, "accuracy": "1.7"},
+        {**as_csv, "platform": "mobile"},
+        {**as_csv, "rank_tier": ""},
+        {**as_csv, "age_band": "16-17"},
+    ]
+    response = client.post("/profiles/validate", json={"rows": rows}, headers=HEADERS)
+    assert response.status_code == 200
+    report = response.json()
+    assert (report["total"], report["valid_count"], report["invalid_count"]) == (5, 1, 4)
+    errors = [r["errors"] for r in report["rows"]]
+    assert errors[0] == []
+    assert "accuracy : doit être inférieur ou égal à 1.0" in errors[1]
+    assert "ou" in errors[2][0] and "platform" in errors[2][0]
+    assert errors[3] == ["rank_tier : valeur manquante"]
+    assert "non autorisé" in errors[4][0]
+
+
+def test_validation_protegee_par_cle(client, payloads):
+    assert client.post("/profiles/validate", json={"rows": [payloads[0]]}).status_code == 401
+
+
+def test_console_servie_avec_en_tetes_de_securite(client):
+    response = client.get("/console/")
+    assert response.status_code == 200
+    assert "Sentinel" in response.text
+    assert "default-src 'self'" in response.headers["content-security-policy"]
+    assert response.headers["x-frame-options"] == "DENY"
+
+
+def test_racine_redirige_vers_la_console(client):
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "/console/"
+
+
+def test_fichier_d_exemple_conforme_au_contrat(client):
+    """Le fichier de démonstration contient 150 lignes valides et 3 erreurs volontaires."""
+    import csv
+    import io
+
+    text = client.get("/console/exemple_profils.csv").text
+    rows = list(csv.DictReader(io.StringIO(text)))
+    report = client.post("/profiles/validate", json={"rows": rows}, headers=HEADERS).json()
+    assert (report["valid_count"], report["invalid_count"]) == (150, 3)
+
+
+def test_model_info_expose_les_libelles(client):
+    labels = client.get("/model-info", headers=HEADERS).json()["feature_labels"]
+    assert labels["avg_reaction_ms"] == "Temps de réaction moyen"

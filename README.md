@@ -52,6 +52,29 @@ Les notebooks (`notebooks/`) s'ouvrent dans VS Code ou Jupyter et s'exécutent a
 2. `02_modelisation` : découpage par joueur, comparaison des modèles, choix du seuil, résultats sur le test ;
 3. `03_explicabilite_biais` : importance des variables (SHAP), explications individuelles, audit d'équité.
 
+## Console de modération
+
+Une fois les services démarrés, la console est accessible sur <http://localhost:8000/>
+(connexion avec la clé `API_KEY`).
+
+| Onglet | Rôle |
+|---|---|
+| 01 Importer | Dépôt d'un CSV de fiches de match ; chaque ligne est validée par l'API et les rejets sont expliqués en français. Un fichier d'exemple (150 profils + 3 lignes invalides) est fourni. |
+| 02 File de revue | Fiches triées par score de suspicion, priorité (icône + texte), raison principale, répartition des scores avec le seuil de décision. |
+| Fiche joueur | Les 3 raisons du score comparées aux joueurs honnêtes du même rang, toutes les statistiques du match, et le formulaire de **décision humaine** enregistrée en base. |
+| 03 Santé du modèle | Carte d'identité du modèle (version, commit, empreinte des données), comparaison avec la règle des signalements, audit d'équité, critères d'acceptation. |
+
+Choix de conception :
+
+- **Aucune ressource externe** : polices (IBM Plex, licence OFL) et graphiques (SVG) sont
+  servis par l'API elle-même ; pas de CDN ni de Google Fonts, donc aucune donnée de
+  navigation transmise à un tiers. Une politique CSP stricte l'impose.
+- **Sécurité** : contenu inséré uniquement en texte (protection contre le XSS), clé d'API
+  conservée le temps de l'onglet seulement.
+- **Accessibilité (RGAA)** : lien d'évitement, navigation au clavier, focus visible, libellés
+  de formulaires, contrastes renforcés, priorité jamais signalée par la couleur seule,
+  tableau de données sous chaque graphique, animations désactivées si l'utilisateur le demande.
+
 ## Lancer l'API avec Docker
 
 ```bash
