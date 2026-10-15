@@ -27,8 +27,6 @@ Voir [docs/cahier_des_charges.md](docs/cahier_des_charges.md).
 
 ## Installation
 
-_À compléter au fil du projet._
-
 Prérequis : Python 3.11, Docker et Docker Compose.
 
 ```bash
@@ -36,6 +34,36 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+## Utilisation
+
+| Commande | Effet |
+|---|---|
+| `python -m src.data.generate --output data/train.csv` | Génère 50 000 fiches synthétiques (graine 42) |
+| `python -m src.data.generate --cheat-intensity 0.4 --seed 7 --output data/drift.csv` | Génère des données de « triche humanisée » (scénario de dérive) |
+| `python -m src.train --version v2` | Entraîne, sélectionne, évalue et sauvegarde un modèle dans `models/` |
+| `pytest -v` | Lance tous les tests |
+| `ruff check .` | Vérifie le style et les erreurs courantes |
+
+Les notebooks (`notebooks/`) s'ouvrent dans VS Code ou Jupyter et s'exécutent avec « Run All » :
+
+1. `01_exploration` : déséquilibre des classes, signaux de triche, pièges d'équité, limites de la règle des signalements ;
+2. `02_modelisation` : découpage par joueur, comparaison des modèles, choix du seuil, résultats sur le test ;
+3. `03_explicabilite_biais` : importance des variables (SHAP), explications individuelles, audit d'équité.
+
+## Résultats du modèle v1 (jeu de test)
+
+| Métrique | Règle actuelle (signalements) | Sentinel v1 | Seuil d'acceptation |
+|---|---|---|---|
+| PR-AUC | 0,11 | 0,59 | ≥ 0,45 |
+| ROC-AUC | 0,68 | 0,87 | ≥ 0,80 |
+| Précision sur le 1 % le plus suspect | 30 % | 94 % | ≥ 80 % |
+| Rappel au seuil de décision | 10 % | 57 % | ≥ 40 % |
+| Taux de faux positifs | 0,6 % | 1,3 % | ≤ 1 % (tolérance 1,5 %) |
+| Écart max. de faux positifs entre groupes | — | 0,75 point | < 2 points |
+
+Détail complet (métriques, audit d'équité, empreinte des données, commit du code) :
+`models/cheat_model_v1.json`.
 
 ## Qualité du code
 

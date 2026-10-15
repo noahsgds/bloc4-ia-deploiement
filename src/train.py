@@ -44,6 +44,8 @@ from src.config import (
 from src.data.generate import generate_dataset
 from src.data.validate import validate_dataset
 from src.evaluate import compute_metrics, threshold_for_max_fpr
+from src.explain import reference_by_rank, transformed_mean
+from src.fairness import fairness_passed, fairness_report
 from src.features import build_preprocessor
 
 
@@ -128,13 +130,19 @@ class TrainingResult:
     test_metrics: dict = field(default_factory=dict)  # modèle retenu, sur le test
     baseline_test_metrics: dict = field(default_factory=dict)  # règle des signalements
     acceptance: dict = field(default_factory=dict)  # seuils du cahier des charges
+    fairness: dict = field(default_factory=dict)  # audit d'équité sur le test
+    explain_info: dict = field(default_factory=dict)  # références pour les explications
     data_info: dict = field(default_factory=dict)
 
 
-def check_acceptance(metrics: dict) -> dict:
-    """Compare les métriques de test aux seuils d'acceptation du cahier des charges."""
+def check_acceptance(metrics: dict, fairness: dict) -> dict:
+    """Compare les résultats de test aux seuils d'acceptation du cahier des charges.
+
+    Un modèle n'est acceptable que s'il est à la fois performant ET équitable.
+    """
     checks = {name: metrics[name] >= minimum for name, minimum in ACCEPTANCE_THRESHOLDS.items()}
     checks["false_positive_rate"] = metrics["false_positive_rate"] <= MAX_FALSE_POSITIVE_RATE * 1.5
+    checks["fairness"] = fairness_passed(fairness)
     return {"passed": all(checks.values()), "details": checks}
 
 
@@ -158,6 +166,7 @@ def train_and_select(df: pd.DataFrame, seed: int = RANDOM_SEED) -> TrainingResul
     # Évaluation finale sur le test, jamais vu pendant l'entraînement ni le choix du modèle.
     test_scores = best_model.predict_proba(test[FEATURES])[:, 1]
     test_metrics = compute_metrics(test[TARGET], test_scores, best_threshold, REVIEW_SHARE)
+    fairness = fairness_report(test, test_scores, best_threshold)
 
     # Règle actuelle des modérateurs : trier par nombre de signalements.
     baseline_scores = test["reports_received"].to_numpy(dtype=float)
@@ -175,7 +184,12 @@ def train_and_select(df: pd.DataFrame, seed: int = RANDOM_SEED) -> TrainingResul
         validation_metrics=validation_metrics,
         test_metrics=test_metrics,
         baseline_test_metrics=baseline_metrics,
-        acceptance=check_acceptance(test_metrics),
+        acceptance=check_acceptance(test_metrics, fairness),
+        fairness=fairness,
+        explain_info={
+            "reference_by_rank": reference_by_rank(train),
+            "background_mean": transformed_mean(best_model, train),
+        },
         data_info={
             "fingerprint": data_fingerprint(df),
             "n_rows": int(len(df)),
@@ -212,6 +226,8 @@ def save_model(
         "test_metrics": result.test_metrics,
         "baseline_test_metrics": result.baseline_test_metrics,
         "acceptance": result.acceptance,
+        "fairness": result.fairness,
+        "explain_info": result.explain_info,
     }
     metadata_path = models_dir / f"cheat_model_{version}.json"
     metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False))

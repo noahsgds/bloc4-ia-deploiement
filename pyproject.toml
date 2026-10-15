@@ -11,3 +11,8 @@ select = ["E", "W", "F", "I"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+# Dans les notebooks, sys.path doit être modifié AVANT d'importer src/ : l'import
+# "en milieu de cellule" (règle E402) y est donc normal et autorisé.
+[tool.ruff.lint.per-file-ignores]
+"notebooks/*.ipynb" = ["E402"]
