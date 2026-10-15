@@ -12,6 +12,8 @@ Routes :
     POST   /players/{player_id}/decisions décision humaine d'un modérateur
     GET    /players/{player_id}/data      droit d'accès (RGPD art. 15)
     DELETE /players/{player_id}/data      droit à l'effacement (RGPD art. 17)
+    POST   /profiles/validate             validation ligne par ligne d'un import
+    GET    /console/                      console de modération (interface web)
 """
 
 import json
@@ -20,10 +22,12 @@ import os
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.repository import InMemoryRepository, PostgresRepository
 from api.schemas import (
@@ -36,9 +40,12 @@ from api.schemas import (
     MatchStats,
     PlayerData,
     Prediction,
+    ValidationReport,
+    ValidationRequest,
 )
 from api.security import expected_api_key, require_api_key
 from api.service import ModelService
+from api.validation import validate_rows
 from src.config import FEATURES, MODELS_DIR
 
 
@@ -63,6 +70,22 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
 def log(level: int, message: str, **fields) -> None:
     logger.log(level, message, extra={"extra_fields": fields})
+
+
+CONSOLE_DIR = Path(__file__).parent / "static" / "console"
+
+# En-têtes de sécurité de la console. La politique CSP n'autorise que les ressources servies
+# par l'API elle-même : aucun script, police ou image externe (pas de fuite de données vers
+# un tiers), et elle bloque l'exécution de scripts injectés (protection contre le XSS).
+CONSOLE_SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+        "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+}
 
 
 def build_repository():
@@ -112,6 +135,8 @@ def create_app(repository=None, models_dir=MODELS_DIR) -> FastAPI:
             duration_ms=round((time.perf_counter() - start) * 1000, 1),
         )
         response.headers["X-Request-ID"] = request_id
+        if request.url.path.startswith("/console"):
+            response.headers.update(CONSOLE_SECURITY_HEADERS)
         return response
 
     @app.exception_handler(Exception)
@@ -202,6 +227,16 @@ def create_app(repository=None, models_dir=MODELS_DIR) -> FastAPI:
         }
 
     @app.post(
+        "/profiles/validate",
+        response_model=ValidationReport,
+        tags=["Prédiction"],
+        dependencies=[Depends(require_api_key)],
+    )
+    def validate_profiles(payload: ValidationRequest):
+        """Vérifie chaque ligne d'un import et explique les erreurs, sans rien scorer."""
+        return validate_rows(payload.rows)
+
+    @app.post(
         "/players/{player_id}/decisions",
         response_model=Decision,
         status_code=status.HTTP_201_CREATED,
@@ -249,6 +284,13 @@ def create_app(repository=None, models_dir=MODELS_DIR) -> FastAPI:
         n_pred, n_dec = repository.delete_player_data(str(player_id))
         log(logging.INFO, "droit à l'effacement exercé", deleted_predictions=n_pred)
         return {"player_id": player_id, "deleted_predictions": n_pred, "deleted_decisions": n_dec}
+
+    # --- Console de modération (fichiers statiques) ------------------------------------
+    app.mount("/console", StaticFiles(directory=CONSOLE_DIR, html=True), name="console")
+
+    @app.get("/", include_in_schema=False)
+    def home():
+        return RedirectResponse("/console/")
 
     return app
 
