@@ -19,7 +19,7 @@ Voir [docs/cahier_des_charges.md](docs/cahier_des_charges.md).
 | `src/` | Génération des données, preprocessing, entraînement, évaluation |
 | `tests/` | Tests automatisés (pytest) |
 | `models/` | Modèle champion versionné et ses métadonnées |
-| `api/` | API de prédiction (FastAPI) |
+| `api/` | API de prédiction (FastAPI), stockage Postgres, purge RGPD |
 | `monitoring/` | Détection de drift (Evidently) |
 | `retrain/` | Réentraînement automatisé |
 | `.github/workflows/` | Pipelines CI/CD (GitHub Actions) |
@@ -51,6 +51,45 @@ Les notebooks (`notebooks/`) s'ouvrent dans VS Code ou Jupyter et s'exécutent a
 1. `01_exploration` : déséquilibre des classes, signaux de triche, pièges d'équité, limites de la règle des signalements ;
 2. `02_modelisation` : découpage par joueur, comparaison des modèles, choix du seuil, résultats sur le test ;
 3. `03_explicabilite_biais` : importance des variables (SHAP), explications individuelles, audit d'équité.
+
+## Lancer l'API avec Docker
+
+```bash
+cp .env.example .env          # puis remplacer les valeurs "change-me"
+docker compose up --build     # démarre Postgres puis l'API
+```
+
+- Documentation interactive : <http://localhost:8000/docs> (bouton « Authorize » : saisir la clé `API_KEY`)
+- État du service : <http://localhost:8000/health>
+
+| Route | Rôle |
+|---|---|
+| `GET /health` | État du service (sans authentification) |
+| `GET /model-info` | Version, métriques, équité et traçabilité du modèle en production |
+| `POST /predict` | Score de suspicion d'une fiche (joueur, match) et ses 3 raisons |
+| `POST /predict/batch` | File de revue : jusqu'à 1 000 fiches triées de la plus à la moins suspecte |
+| `POST /players/{id}/decisions` | Décision humaine d'un modérateur |
+| `GET /players/{id}/data` | Droit d'accès RGPD : toutes les données d'un joueur |
+| `DELETE /players/{id}/data` | Droit à l'effacement RGPD (différé si une sanction est en cours de contestation) |
+
+Exemple :
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "X-API-Key: <votre clé>" -H "Content-Type: application/json" \
+  -d '{"player_id": "8274bbcc-1f0e-4c1a-9a51-6f2d3c4b5a69", "match_id": "0b9c2f4e-7d1a-4e3b-8c6f-2a1d9e8f7b65",
+       "accuracy": 0.31, "headshot_rate": 0.42, "kd_ratio": 2.4, "kills_per_min": 1.2,
+       "damage_per_round": 165, "avg_reaction_ms": 182, "kills_through_smoke_ratio": 0.21,
+       "rank_tier": 6, "account_age_days": 22, "hours_played_total": 29, "reports_received": 3,
+       "input_device": "clavier_souris", "platform": "pc"}'
+```
+
+Sécurité : clé d'API comparée en temps constant, validation stricte des entrées (erreur 422
+explicite), variables d'audit refusées, requêtes SQL paramétrées, base de données non exposée
+hors du réseau Docker, conteneur sans droits root et en lecture seule, limites CPU et mémoire.
+En production, l'API serait placée derrière un reverse proxy assurant le HTTPS.
+
+Purge RGPD des prédictions de plus de 12 mois : `docker compose exec api python -m api.purge`.
 
 ## Résultats du modèle v1 (jeu de test)
 
