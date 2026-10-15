@@ -42,6 +42,7 @@ pip install -r requirements.txt
 | `python -m src.data.generate --output data/train.csv` | Génère 50 000 fiches synthétiques (graine 42) |
 | `python -m src.data.generate --cheat-intensity 0.4 --seed 7 --output data/drift.csv` | Génère des données de « triche humanisée » (scénario de dérive) |
 | `python -m src.train --version v2` | Entraîne, sélectionne, évalue et sauvegarde un modèle dans `models/` |
+| `python -m src.benchmark` | Mesure la latence d'une prédiction et le débit par lot |
 | `pytest -v` | Lance tous les tests |
 | `ruff check .` | Vérifie le style et les erreurs courantes |
 
@@ -64,6 +65,26 @@ Les notebooks (`notebooks/`) s'ouvrent dans VS Code ou Jupyter et s'exécutent a
 
 Détail complet (métriques, audit d'équité, empreinte des données, commit du code) :
 `models/cheat_model_v1.json`.
+
+## Robustesse et montée en charge
+
+**Robustesse** (`tests/test_robustness.py`) : le modèle ne plante jamais et renvoie toujours
+une probabilité valide, même avec des valeurs manquantes sur n'importe quelle variable, des
+valeurs aberrantes ou des catégories inconnues (nouvelle plateforme). Il se dégrade
+doucement : un bruit de mesure de 5 % garde 97 des 100 fiches les plus suspectes dans la
+file de revue, et une perte de 30 % des temps de réaction ne fait presque pas baisser la
+PR-AUC. Sans aucun signalement (panne du système), il reste nettement meilleur que le hasard.
+
+**Montée en charge** (`python -m src.benchmark`, mesuré en local) :
+
+| Mesure | Résultat | Exigence |
+|---|---|---|
+| Latence d'une fiche (p95) | ~5 ms | < 200 ms |
+| Lot de 100 000 fiches | ~0,2 s (≈ 500 000 fiches/s) | volume quotidien ≈ 30 000 fiches |
+
+Le temps croît proportionnellement au volume. Le modèle n'est donc pas le goulot
+d'étranglement : la montée en charge se joue au niveau de l'API (plusieurs instances sans
+état derrière un répartiteur de charge).
 
 ## Qualité du code
 
