@@ -102,3 +102,18 @@ MAX_FPR_GAP = 0.02
 # Découpage des données : 60 % entraînement, 20 % validation, 20 % test.
 VALIDATION_SHARE = 0.20
 TEST_SHARE = 0.20
+
+# --- Monitoring en production (étape 9) ---------------------------------------
+REPORTS_DIR = ROOT_DIR / "monitoring" / "reports"
+
+# Dérive des données (Evidently) : une colonne "dérive" si sa distance au jeu de référence
+# dépasse 0,1 (distance de Wasserstein normalisée pour les nombres, Jensen-Shannon pour les
+# catégories ; seuils par défaut d'Evidently). Alerte si au moins 25 % des colonnes dérivent.
+DRIFT_COLUMN_THRESHOLD = 0.1
+DRIFT_SHARE_ALERT = 0.25
+
+# Dérive de performance (mesurée sur les fiches dont la vérité est connue après enquête) :
+# alerte si la PR-AUC perd plus de 0,10 par rapport au test, ou si plus de 2 % des joueurs
+# honnêtes sont signalés à tort.
+MAX_PR_AUC_DROP = 0.10
+MONITORING_MAX_FPR = 0.02

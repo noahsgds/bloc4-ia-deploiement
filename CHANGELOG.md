@@ -7,6 +7,16 @@ numérotation [SemVer](https://semver.org/lang/fr/) : MAJEUR.MINEUR.CORRECTIF.
 - **MINEUR** : nouvelle fonctionnalité compatible, ou nouveau modèle.
 - **CORRECTIF** : correction sans changement de comportement attendu.
 
+## [Non publié]
+
+### Ajouté
+
+- Surveillance du modèle : dérive des données (Evidently), dérive des prédictions et
+  performance sur les fiches étiquetées, avec statut ok/alerte et rapport HTML.
+- Workflow quotidien de surveillance qui ouvre un ticket GitHub en cas d'alerte.
+- Générateur : option `--game-patch` pour simuler une mise à jour du jeu.
+- CI : les tests en échec apparaissent en annotations sur la Pull Request.
+
 ## [1.0.0] - 2026-10-16
 
 Première version de Sentinel.

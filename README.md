@@ -155,6 +155,7 @@ d'étranglement : la montée en charge se joue au niveau de l'API (plusieurs ins
 |---|---|---|
 | `ci.yml` | Chaque push et chaque Pull Request | ruff → tests pytest (avec une vraie base Postgres) → construction de l'image Docker → démarrage et prédiction de test dans le conteneur |
 | `cd.yml` | Publication d'un tag `vX.Y.Z` | CI complète → image multi-architecture publiée sur `ghcr.io` → Release GitHub avec les notes du CHANGELOG → déploiement sur la machine d'exploitation avec test de fonctionnement et retour automatique à la version précédente en cas d'échec |
+| `monitoring.yml` | Chaque jour à 6 h 17 UTC et à la demande | Contrôle de dérive et de performance → rapport HTML en artefact → ticket GitHub en cas d'alerte |
 | `dependabot.yml` | Chaque semaine | Pull Requests automatiques de mise à jour des dépendances (pip, Actions, Docker) |
 
 Publier une nouvelle version :
@@ -170,6 +171,56 @@ Sécurité du pipeline : permissions minimales déclarées job par job ; secrets
 GitHub temporaire pour le registre ; le fichier de configuration du déploiement est créé
 avec des droits restreints puis supprimé ; l'image déployée est exactement celle testée par
 la CI.
+
+## Surveillance du modèle (dérive)
+
+Un modèle juste au lancement ne le reste pas : le jeu évolue, les tricheurs s'adaptent.
+`monitoring/drift_report.py` répond à deux questions distinctes.
+
+| Contrôle | Question | Comment | Alerte si |
+|---|---|---|---|
+| Dérive des données | Les statistiques des matchs ont-elles changé ? | Evidently : distance de Wasserstein normalisée (nombres), Jensen-Shannon (catégories), par rapport au jeu d'entraînement | ≥ 25 % des variables ont une distance ≥ 0,1 |
+| Dérive des prédictions | Le modèle signale-t-il plus ou moins de fiches ? | Même mesure sur le score, part de fiches au-dessus du seuil | Information, pas d'alerte seule |
+| Performance | Le modèle se trompe-t-il davantage ? | PR-AUC et faux positifs sur les fiches dont la vérité est connue | PR-AUC −0,10 par rapport au test, ou > 2 % d'honnêtes signalés |
+
+```bash
+python -m monitoring.drift_report --scenario normal      # aucune alerte
+python -m monitoring.drift_report --scenario patch       # mise à jour du jeu
+python -m monitoring.drift_report --scenario humanisee   # triche plus discrète
+python -m monitoring.drift_report --current matchs_recents.csv
+```
+
+Le rapport HTML Evidently et un résumé JSON sont écrits dans `monitoring/reports/`
+(ignoré par Git). Le workflow `monitoring.yml` lance le contrôle chaque jour et à la
+demande (onglet Actions → « Surveillance du modèle » → Run workflow, choix du scénario) ;
+en cas d'alerte, il ouvre un ticket GitHub avec les raisons et les actions attendues.
+
+Résultats des trois scénarios (30 000 nouvelles lignes, modèle v1) :
+
+| Scénario | Variables qui dérivent | PR-AUC | Faux positifs | Statut |
+|---|---|---|---|---|
+| Normal | aucune | 0,56 | 1,0 % | ok |
+| Patch du jeu (tout le monde vise mieux) | 4 / 13 (précision, headshots, réaction, kills/min) | 0,54 | **4,8 %** | alerte |
+| Triche humanisée | **aucune** | **0,15** | 1,0 % | alerte |
+
+Ce qu'il faut retenir :
+
+- **La dérive des données ne suffit pas.** La triche humanisée ne change presque pas les
+  statistiques globales (3 % de tricheurs), mais le modèle ne la voit plus. Seule la
+  surveillance de performance la détecte.
+- **Le patch du jeu ne fait pas rater les tricheurs, il accuse des innocents** : 4,8 %
+  des joueurs honnêtes dépassent le seuil. C'est le risque le plus grave pour l'équité.
+- **Pourquoi pas le test de Kolmogorov-Smirnov** (choix par défaut d'Evidently sous
+  1 000 lignes, et test classique) : les matchs d'un même joueur ne sont pas indépendants
+  et, avec des dizaines de milliers de lignes, ce test signale une dérive pour des écarts
+  sans importance. On a constaté de fausses alertes sur des données normales. Une distance
+  mesure l'ampleur de l'écart, pas seulement son existence.
+
+Limite connue : en production, la vérité n'est connue que pour les fiches examinées par
+les modérateurs (le 1 % le plus suspect), ce qui ne dit rien des tricheurs restés sous le
+seuil. La parade prévue : faire examiner chaque jour un **petit échantillon tiré au
+hasard** (par exemple 30 fiches) pour mesurer le rappel sans biais. Dans la démo, les
+étiquettes synthétiques jouent ce rôle.
 
 ## Qualité du code
 
