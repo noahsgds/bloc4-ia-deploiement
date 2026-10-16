@@ -1,0 +1,127 @@
+# Intégration continue (CI) — critères 4.1, 4.2 et 6.7
+#
+# À chaque push et chaque Pull Request, GitHub lance automatiquement :
+#   1. la vérification du style (ruff) ;
+#   2. tous les tests (pytest), avec une vraie base Postgres ;
+#   3. la construction de l'image Docker et un test de démarrage ("smoke test").
+# Si une étape échoue, la Pull Request est marquée en rouge : on voit tout de suite
+# qu'il ne faut pas fusionner.
+#
+# Ce workflow est aussi appelé par cd.yml avant chaque publication (workflow_call) :
+# on ne publie jamais une version qui n'a pas passé les tests.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+# Moindre privilège (critère 4.6) : le workflow peut seulement LIRE le dépôt.
+permissions:
+  contents: read
+
+# Si on pousse deux fois de suite sur la même branche, l'exécution précédente est annulée.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualite-et-tests:
+    name: Qualité du code et tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Base Postgres temporaire, créée pour les tests puis détruite.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sentinel
+          POSTGRES_PASSWORD: ci-only-password # base jetable, sans aucune donnée réelle
+          POSTGRES_DB: sentinel_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sentinel"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql://sentinel:ci-only-password@localhost:5432/sentinel_test
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python 3.11 (même version que l'image Docker)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip # garde les bibliothèques téléchargées entre deux exécutions
+
+      - name: Installer les dépendances (versions figées)
+        run: pip install -r requirements.txt
+
+      - name: Vérifier le style et les erreurs courantes (ruff)
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Lancer les tests (pytest)
+        run: pytest -v --junitxml=rapport-tests.xml
+
+      - name: Conserver le rapport de tests
+        if: always() # même si les tests échouent : c'est là qu'on en a le plus besoin
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-tests
+          path: rapport-tests.xml
+          retention-days: 30
+
+  image-docker:
+    name: Image Docker et test de démarrage
+    runs-on: ubuntu-latest
+    needs: qualite-et-tests # inutile de construire l'image si les tests échouent
+    timeout-minutes: 20
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Construire l'image
+        run: docker build -t sentinel-api:ci .
+
+      - name: Démarrer l'API et vérifier qu'elle répond
+        run: |
+          docker run -d --name sentinel -p 8000:8000 -e API_KEY=cle-de-test-ci sentinel-api:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health; then
+              echo ""
+              echo "L'API répond après ${i} seconde(s)."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "L'API ne répond pas : journaux du conteneur ci-dessous."
+          docker logs sentinel
+          exit 1
+
+      - name: Vérifier qu'une prédiction fonctionne dans le conteneur
+        run: |
+          code=$(curl -s -o reponse.json -w "%{http_code}" -X POST http://localhost:8000/predict \
+            -H "X-API-Key: cle-de-test-ci" -H "Content-Type: application/json" \
+            -d '{"player_id": "8274bbcc-1f0e-4c1a-9a51-6f2d3c4b5a69", "match_id": "0b9c2f4e-7d1a-4e3b-8c6f-2a1d9e8f7b65",
+                 "accuracy": 0.31, "headshot_rate": 0.42, "kd_ratio": 2.4, "kills_per_min": 1.2,
+                 "damage_per_round": 165, "avg_reaction_ms": 182, "kills_through_smoke_ratio": 0.21,
+                 "rank_tier": 6, "account_age_days": 22, "hours_played_total": 29, "reports_received": 3,
+                 "input_device": "clavier_souris", "platform": "pc"}')
+          cat reponse.json
+          test "$code" = "200"
+
+      - name: Arrêter le conteneur
+        if: always()
+        run: docker rm -f sentinel
