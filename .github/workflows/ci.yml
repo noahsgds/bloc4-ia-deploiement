@@ -55,7 +55,7 @@ jobs:
 
     steps:
       - name: Récupérer le code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Installer Python 3.11 (même version que l'image Docker)
         uses: actions/setup-python@v5
@@ -102,7 +102,7 @@ jobs:
 
     steps:
       - name: Récupérer le code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Construire l'image
         run: docker build -t sentinel-api:ci .
