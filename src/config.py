@@ -117,3 +117,22 @@ DRIFT_SHARE_ALERT = 0.25
 # honnêtes sont signalés à tort.
 MAX_PR_AUC_DROP = 0.10
 MONITORING_MAX_FPR = 0.02
+
+# --- Réentraînement automatique (étape 10) ------------------------------------------------
+RETRAIN_REPORTS_DIR = ROOT_DIR / "retrain" / "reports"
+TRAINING_WINDOW = 50_000  # fenêtre glissante : les 50 000 fiches étiquetées les plus récentes
+# Les fiches récentes sont coupées en trois, par joueur :
+# 50 % pour entraîner, 20 % pour recaler le seuil sur l'état actuel du jeu,
+# 30 % pour examiner les deux modèles (jamais vues par l'un ni par l'autre).
+RECENT_TRAIN_SHARE = 0.50
+RECENT_CALIBRATION_SHARE = 0.20
+
+# Règles de promotion du nouveau modèle ("challenger") face au modèle en production
+# ("champion"), mesurées sur des fiches qu'aucun des deux n'a vues à l'entraînement.
+# Le gain doit être réel, pas un coup de chance : on retire 200 fois au hasard les joueurs
+# examinés ; le challenger doit faire mieux dans au moins 95 % des tirages.
+PROMOTION_BOOTSTRAP_DRAWS = 200
+PROMOTION_CONFIDENCE = 0.95
+PROMOTION_MAX_LOSS = 0.01  # perte de PR-AUC tolérée sur les fiches récentes
+PROMOTION_MAX_OLD_LOSS = 0.05  # perte tolérée sur les anciennes fiches (pas d'"oubli")
+PROMOTION_MAX_FPR = 0.015  # tolérance du cahier des charges sur les faux positifs

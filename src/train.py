@@ -202,11 +202,18 @@ def train_and_select(df: pd.DataFrame, seed: int = RANDOM_SEED) -> TrainingResul
 
 
 def save_model(
-    result: TrainingResult, version: str, seed: int, models_dir: Path = MODELS_DIR
+    result: TrainingResult,
+    version: str,
+    seed: int,
+    models_dir: Path = MODELS_DIR,
+    extra: dict | None = None,
 ) -> Path:
     """Sauvegarde le modèle (.joblib) et sa fiche de métadonnées (.json).
 
     Le fichier champion.json indique quelle version est en production.
+
+    Args:
+        extra: informations supplémentaires à enregistrer (ex. : rapport de promotion).
     """
     models_dir.mkdir(parents=True, exist_ok=True)
     model_path = models_dir / f"cheat_model_{version}.joblib"
@@ -228,13 +235,21 @@ def save_model(
         "acceptance": result.acceptance,
         "fairness": result.fairness,
         "explain_info": result.explain_info,
+        **(extra or {}),
     }
     metadata_path = models_dir / f"cheat_model_{version}.json"
     metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False))
 
-    champion_path = models_dir / "champion.json"
-    champion_path.write_text(json.dumps({"version": version}, indent=2))
+    set_champion(version, models_dir)
     return model_path
+
+
+def set_champion(version: str, models_dir: Path = MODELS_DIR) -> None:
+    """Désigne la version en production. Sert aussi au retour arrière (rollback)."""
+    if not (models_dir / f"cheat_model_{version}.joblib").exists():
+        raise FileNotFoundError(f"Version inconnue : {version} (absente de {models_dir}).")
+    champion_path = models_dir / "champion.json"
+    champion_path.write_text(json.dumps({"version": version}, indent=2) + "\n")
 
 
 def load_champion(models_dir: Path = MODELS_DIR) -> tuple[Pipeline, dict]:

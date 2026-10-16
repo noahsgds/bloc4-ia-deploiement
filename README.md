@@ -155,7 +155,8 @@ d'étranglement : la montée en charge se joue au niveau de l'API (plusieurs ins
 |---|---|---|
 | `ci.yml` | Chaque push et chaque Pull Request | ruff → tests pytest (avec une vraie base Postgres) → construction de l'image Docker → démarrage et prédiction de test dans le conteneur |
 | `cd.yml` | Publication d'un tag `vX.Y.Z` | CI complète → image multi-architecture publiée sur `ghcr.io` → Release GitHub avec les notes du CHANGELOG → déploiement sur la machine d'exploitation avec test de fonctionnement et retour automatique à la version précédente en cas d'échec |
-| `monitoring.yml` | Chaque jour à 6 h 17 UTC et à la demande | Contrôle de dérive et de performance → rapport HTML en artefact → ticket GitHub en cas d'alerte |
+| `monitoring.yml` | Chaque jour à 6 h 17 UTC et à la demande | Contrôle de dérive et de performance → rapport HTML en artefact → ticket GitHub en cas d'alerte → lancement de `retrain.yml` |
+| `retrain.yml` | Alerte de surveillance, ou à la demande | Entraînement d'un challenger → comparaison au champion → si promu : tous les tests avec le nouveau modèle, puis Pull Request à valider → résultat ajouté au ticket |
 | `dependabot.yml` | Chaque semaine | Pull Requests automatiques de mise à jour des dépendances (pip, Actions, Docker) |
 
 Publier une nouvelle version :
@@ -193,7 +194,7 @@ python -m monitoring.drift_report --current matchs_recents.csv
 Le rapport HTML Evidently et un résumé JSON sont écrits dans `monitoring/reports/`
 (ignoré par Git). Le workflow `monitoring.yml` lance le contrôle chaque jour et à la
 demande (onglet Actions → « Surveillance du modèle » → Run workflow, choix du scénario) ;
-en cas d'alerte, il ouvre un ticket GitHub avec les raisons et les actions attendues.
+en cas d'alerte, il ouvre un ticket GitHub avec les raisons et lance le réentraînement.
 
 Résultats des trois scénarios (30 000 nouvelles lignes, modèle v1) :
 
@@ -221,6 +222,61 @@ les modérateurs (le 1 % le plus suspect), ce qui ne dit rien des tricheurs rest
 seuil. La parade prévue : faire examiner chaque jour un **petit échantillon tiré au
 hasard** (par exemple 30 fiches) pour mesurer le rappel sans biais. Dans la démo, les
 étiquettes synthétiques jouent ce rôle.
+
+## Réentraînement automatique
+
+`retrain/retrain.py` applique le principe **champion / challenger** : le modèle en
+production (champion) n'est remplacé que par un nouveau modèle (challenger) qui prouve
+qu'il fait mieux, sur des fiches qu'aucun des deux n'a vues.
+
+```bash
+python -m retrain.retrain --scenario patch            # fiches récentes de démonstration
+python -m retrain.retrain --current fiches.csv        # export de fiches étiquetées
+python -m retrain.retrain --scenario patch --dry-run  # décider sans rien enregistrer
+python -m retrain.retrain --rollback v1               # retour à une version précédente
+```
+
+**Données.** Les fiches récentes (vérité connue après enquête) sont séparées par joueur :
+50 % pour entraîner, 20 % pour recaler le seuil, 30 % pour l'examen final. Le challenger
+apprend sur une **fenêtre glissante** des 50 000 fiches les plus récentes (anciennes +
+nouvelles) : le modèle suit l'évolution du jeu et l'entraînement dure toujours ~3 s.
+Les fiches récentes font foi : un joueur présent dans les nouvelles données est retiré
+des anciennes (pas de doublon, aucun joueur examiné n'a été vu à l'entraînement). Un
+format modifié ou des fiches sans étiquette arrêtent le réentraînement avec un message.
+
+**Règles de promotion** (`promotion_decision`, toutes obligatoires) :
+
+| Règle | Pourquoi |
+|---|---|
+| Gain de PR-AUC confirmé dans ≥ 95 % de 200 tirages aléatoires de joueurs, **ou** correction d'un champion qui dépasse 1,5 % de faux positifs | Sur 9 000 fiches, la PR-AUC varie de ±0,03 selon l'échantillon : un petit gain peut être un coup de chance |
+| Pas de perte de PR-AUC récente (0,01, ou 0,05 si l'on corrige des faux positifs) | Protéger les innocents passe avant un léger recul |
+| Pas d'« oubli » : PR-AUC sur l'ancien test − 0,05 au plus | Les anciennes triches existent toujours |
+| Faux positifs ≤ 1,5 % (récents et anciens) | Tolérance du cahier des charges |
+| Écart de faux positifs entre groupes < 2 points | Équité (appareil, plateforme, accessibilité, âge) |
+
+Résultats à partir du modèle v1 (fiches jamais vues) :
+
+| Scénario | Champion v1 | Challenger | Décision |
+|---|---|---|---|
+| Patch du jeu | PR-AUC 0,55 ; **5,2 %** de faux positifs | PR-AUC 0,59 ; **1,1 %** | Promu : corrige les faux positifs |
+| Triche humanisée | PR-AUC 0,15 | PR-AUC 0,21 | Promu, **mais sous les seuils du cahier des charges** |
+
+Le second cas est le plus instructif : réentraîner ne suffit pas quand la triche ne laisse
+plus de trace dans les variables actuelles. Le rapport le signale ; la vraie réponse est
+de nouvelles variables (par exemple la trajectoire de visée), donc un nouveau projet.
+
+**Traçabilité (reproductibilité).** Chaque modèle enregistre dans sa fiche JSON : graine,
+commit Git, version de scikit-learn, empreinte des données, version parente, rapport de
+promotion complet et **recette** de ses données (`src/lineage.py`). La recette s'emboîte
+(celle de v3 contient celle de v2, qui contient celle de v1) : on reconstruit à
+l'identique les données de n'importe quel modèle, et l'empreinte le prouve. Les données
+elles-mêmes ne sont pas dans Git (volume, et données personnelles en production).
+
+**Mise en production : toujours validée par un humain.** Le workflow propose le nouveau
+modèle dans une Pull Request ; la fusion puis la publication d'une version (tag) le
+déploient via la CD. Pour que GitHub Actions puisse ouvrir cette Pull Request, cocher
+*Settings → Actions → General → Allow GitHub Actions to create and approve pull requests* ;
+sinon la branche est poussée et le lien pour ouvrir la PR est indiqué dans l'exécution.
 
 ## Qualité du code
 

@@ -4,7 +4,9 @@
 #   1. compare les matchs récents aux données d'entraînement (dérive des données, Evidently) ;
 #   2. recalcule les performances sur les fiches dont la vérité est connue ;
 #   3. publie le rapport HTML en "artefact" téléchargeable ;
-#   4. en cas d'alerte, ouvre un ticket (issue) GitHub pour l'équipe et marque l'exécution en rouge.
+#   4. en cas d'alerte, ouvre un ticket (issue) GitHub pour l'équipe ;
+#   5. puis lance le réentraînement (retrain.yml) : si un meilleur modèle est trouvé, il est
+#      proposé en Pull Request, que l'équipe valide avant toute mise en production.
 #
 # Démo : les "matchs récents" sont synthétiques. Le choix du scénario (normal, patch,
 # humanisee) permet de montrer au jury une exécution sans alerte et deux alertes différentes.
@@ -23,15 +25,20 @@ on:
         options: [normal, patch, humanisee]
         default: normal
 
-permissions:
-  contents: read
-  issues: write # ouvrir un ticket en cas d'alerte, rien d'autre
+# Aucun droit par défaut : chaque job déclare le strict nécessaire.
+permissions: {}
 
 jobs:
   surveiller:
     name: Dérive des données et performance
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write # ouvrir un ticket en cas d'alerte, rien d'autre
+    outputs:
+      status: ${{ steps.statut.outputs.status }}
+      ticket: ${{ steps.ticket.outputs.url }}
     env:
       SCENARIO: ${{ inputs.scenario || 'normal' }}
     steps:
@@ -58,16 +65,20 @@ jobs:
           path: monitoring/reports/
           retention-days: 30
 
+      - name: Lire le statut
+        id: statut
+        run: |
+          status=$(python -c "import json; print(json.load(open('monitoring/reports/dernier_resume.json'))['status'])")
+          echo "Statut : ${status}"
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+
       - name: Ouvrir un ticket en cas d'alerte
+        id: ticket
+        if: steps.statut.outputs.status == 'alerte'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          status=$(python -c "import json; print(json.load(open('monitoring/reports/dernier_resume.json'))['status'])")
-          echo "Statut : ${status}"
-          if [ "$status" != "alerte" ]; then
-            exit 0
-          fi
           python - <<'EOF' > ticket.md
           import json, os
           s = json.load(open("monitoring/reports/dernier_resume.json"))
@@ -80,10 +91,24 @@ jobs:
           print("1. Ouvrir le rapport HTML (artefact de l'exécution) et identifier la cause.")
           print("2. Dérive des données seule : vérifier une mise à jour du jeu ; réentraîner si les faux positifs augmentent.")
           print("3. Baisse de PR-AUC : nouvelle forme de triche probable, faire étiqueter des cas récents puis réentraîner.")
-          print("4. En attendant : les modérateurs restent seuls décideurs, aucune sanction automatique.\n")
+          print("4. Un réentraînement est lancé automatiquement ; son résultat sera ajouté ici.")
+          print("5. En attendant : les modérateurs restent seuls décideurs, aucune sanction automatique.\n")
           print(f"Exécution : {os.environ['RUN_URL']}")
           EOF
           gh label create derive-modele --color d93f0b --description "Alerte de surveillance du modèle" 2>/dev/null || true
-          gh issue create --title "Alerte surveillance Sentinel ($SCENARIO)" --label derive-modele --body-file ticket.md
-          echo "::error::Alerte de surveillance : voir le ticket ouvert et le rapport."
-          exit 1
+          url=$(gh issue create --title "Alerte surveillance Sentinel ($SCENARIO)" --label derive-modele --body-file ticket.md)
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "::warning::Alerte de surveillance : ticket ${url}"
+
+  reentrainer:
+    name: Réentraînement après alerte
+    needs: surveiller
+    if: needs.surveiller.outputs.status == 'alerte'
+    uses: ./.github/workflows/retrain.yml
+    with:
+      scenario: ${{ inputs.scenario || 'normal' }}
+      ticket: ${{ needs.surveiller.outputs.ticket }}
+    permissions:
+      contents: write # pousser la branche du nouveau modèle
+      pull-requests: write # proposer le nouveau modèle en Pull Request
+      issues: write # compléter le ticket d'alerte

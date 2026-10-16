@@ -16,6 +16,11 @@ numérotation [SemVer](https://semver.org/lang/fr/) : MAJEUR.MINEUR.CORRECTIF.
 - Workflow quotidien de surveillance qui ouvre un ticket GitHub en cas d'alerte.
 - Générateur : option `--game-patch` pour simuler une mise à jour du jeu.
 - CI : les tests en échec apparaissent en annotations sur la Pull Request.
+- Réentraînement automatique champion / challenger, déclenché par une alerte de
+  surveillance : fenêtre glissante, seuil recalé, règles de promotion (gain confirmé par
+  bootstrap, faux positifs, équité, pas d'oubli), proposition du modèle en Pull Request.
+- Recette des données d'entraînement de chaque modèle (reconstruction vérifiée par empreinte).
+- Retour arrière : `python -m retrain.retrain --rollback <version>`.
 
 ## [1.0.0] - 2026-10-16
 

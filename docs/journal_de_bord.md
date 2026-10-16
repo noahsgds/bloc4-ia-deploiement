@@ -19,12 +19,12 @@
 | 7 | Documentation RGPD détaillée | ⏳ | — |
 | 8 | CI/CD GitHub Actions | ✅ | CI verte sur GitHub ; tag v1.0.0 à pousser par Noah |
 | 9 | Monitoring de la dérive (Evidently) | ✅ | 3 scénarios testés dans la CI |
-| 10 | Réentraînement automatisé | ⏳ | — |
+| 10 | Réentraînement automatisé | ✅ | Scénarios patch et triche humanisée testés ; suite complète verte avec v1 et avec v2 en production |
 | 11 | Documentation finale (architecture, fiche modèle, traçabilité) | ⏳ | — |
 | 12 | Slides et vidéo | ⏳ | — |
 | 13 | Audit final contre la grille et entraînement au jury | ⏳ | — |
 
-Total actuel : **119 tests automatisés**, `ruff` sans erreur, 7 Pull Requests fusionnées.
+Total actuel : **137 tests automatisés**, `ruff` sans erreur, 8 Pull Requests fusionnées.
 
 ---
 
@@ -227,9 +227,34 @@ Total actuel : **119 tests automatisés**, `ruff` sans erreur, 7 Pull Requests f
 - **À dire au jury :** la triche humanisée est invisible pour la dérive des données ; seule la vérité terrain la révèle. Le patch, lui, accuse des innocents. Limite : la vérité n'est connue que pour les fiches examinées ; parade = échantillon de contrôle tiré au hasard chaque jour.
 - **Validation :** 8 tests de logique en local, 3 tests de bout en bout avec Evidently dans la CI.
 
+## Étape 10 — Réentraînement automatique
+
+**Fichiers :** `retrain/retrain.py`, `src/lineage.py`, `tests/test_retrain.py`, `.github/workflows/retrain.yml`, `monitoring.yml` (enchaînement)
+
+- **Principe champion / challenger** : le nouveau modèle n'est promu que s'il prouve qu'il fait mieux, sur des fiches qu'aucun des deux modèles n'a vues.
+- **Chaîne automatique** : alerte de surveillance → ticket → réentraînement → si promu, tous les tests avec le nouveau modèle → Pull Request → validation humaine → tag → CD.
+- **Résultats (depuis v1) :**
+
+| Scénario | Champion v1 | Challenger | Décision |
+|---|---|---|---|
+| Patch du jeu | PR-AUC 0,55, 5,2 % de faux positifs | PR-AUC 0,59, 1,1 % | Promu |
+| Triche humanisée | PR-AUC 0,15 | PR-AUC 0,21 | Promu, mais sous les seuils du cahier des charges |
+
+- **Décisions et problèmes rencontrés :**
+  1. **Seuil recalé** sur 20 % des fiches récentes : avec le seuil calculé sur un mélange ancien/récent, le challenger « patch » laissait passer 1,8 % de faux positifs.
+  2. **Bootstrap** plutôt qu'un gain fixe de +0,02 : sur 9 000 fiches, la PR-AUC varie de ±0,03 selon l'échantillon (mesuré). Gain exigé dans 95 % de 200 tirages de joueurs.
+  3. **Petite perte tolérée** (0,05) si le champion accuse trop d'innocents : protéger les joueurs passe avant.
+  4. **Les fiches récentes font foi** : un joueur des nouvelles données est retiré des anciennes. Ce cas est apparu en enchaînant deux réentraînements (12 000 doublons détectés par la validation).
+  5. **Fenêtre glissante** de 50 000 fiches : suit l'évolution du jeu, durée d'entraînement constante (~3 s).
+  6. **Recette des données** au lieu de stocker les données dans Git : reconstruction exacte, prouvée par l'empreinte.
+  7. **Pas de mise en production automatique** : un humain fusionne la PR (gouvernance, cohérence avec le bloc 1).
+- **À dire au jury :** le réentraînement corrige un changement du jeu (patch), pas une triche devenue invisible. Le rapport le dit explicitement : il faut alors de nouvelles variables.
+- **Limite :** la promotion repose sur la vérité connue, donc sur les enquêtes des modérateurs (voir l'échantillon de contrôle aléatoire, étape 9).
+- **Validation :** 19 tests, suite complète verte avec v1 puis avec v2 en production. **Réglage à faire par Noah** : autoriser GitHub Actions à créer des Pull Requests.
+
 ---
 
-## Couverture de la grille (état au 16/10, après l'étape 9)
+## Couverture de la grille (état au 16/10, après l'étape 10)
 
 | Critère | État | Où |
 |---|---|---|
@@ -244,7 +269,10 @@ Total actuel : **119 tests automatisés**, `ruff` sans erreur, 7 Pull Requests f
 | 2.4 Maintenabilité | 🟢 | Modules, 108 tests, versions |
 | 2.5 Sécurité | 🟢 | Clé, validation, SQL paramétré, CSP |
 | 3.4 Détection de la dérive | 🟢 | `monitoring/drift_report.py`, workflow quotidien, 3 scénarios |
-| 3.1, 3.2, 3.3, 3.5 Réentraînement | 🔴 | Étape 10 (reproductibilité déjà prête : graine, empreinte, commit) |
+| 3.1 Réentraînement automatique | 🟢 | `retrain/retrain.py`, `retrain.yml` déclenché par une alerte |
+| 3.2 Efficace et opportun | 🟢 | Déclenché par l'alerte, ~3 s grâce à la fenêtre glissante, erreurs gérées (code de sortie, ticket) |
+| 3.3 Changements dans les données | 🟢 | Fenêtre glissante, seuil recalé, doublons, format modifié et fiches sans étiquette refusés |
+| 3.5 Reproductibilité | 🟢 | Recette des données emboîtée + empreinte, graine, commit, version parente, rapport de promotion |
 | 4.1 à 4.6 CI/CD | 🟢 | `ci.yml`, `cd.yml`, Dependabot, CHANGELOG. Déploiement automatique : choix du runner à faire |
 | 5.1 et 5.2 RGPD / Informatique et Libertés | 🟡 | Droits d'accès et d'effacement, purge, minimisation ; **registre à rédiger (étape 7)** |
 | 5.3 Sécurité | 🟡 | Mesures techniques faites ; **2FA GitHub et FileVault à confirmer** |
@@ -266,4 +294,4 @@ Total actuel : **119 tests automatisés**, `ruff` sans erreur, 7 Pull Requests f
 
 ## Prochaine étape
 
-**Étape 10 : réentraînement automatisé.** Déclenché par une alerte de surveillance ou à la demande ; promotion du nouveau modèle seulement s'il est meilleur ET équitable ; versionnement et retour arrière.
+**Étape 7 : documentation RGPD** (registre des traitements, analyse d'impact, principes ISO 27001), puis étape 11 (architecture, fiche modèle, matrice de traçabilité).
