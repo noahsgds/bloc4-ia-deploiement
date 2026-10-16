@@ -3,7 +3,7 @@
 # (en pratique, utiliser docker compose up --build, voir docker-compose.yml)
 
 # Image officielle Python 3.11, variante "slim" : légère, mêmes versions qu'en local.
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # Python : pas de fichiers .pyc, logs affichés immédiatement ; pip : pas de cache.
 ENV PYTHONDONTWRITEBYTECODE=1 \
