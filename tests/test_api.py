@@ -6,6 +6,7 @@ Le TestClient de FastAPI envoie de vraies requêtes HTTP à l'application, en lo
 Lancer : pytest tests/test_api.py -v
 """
 
+import json
 import time
 import uuid
 
@@ -16,10 +17,12 @@ from fastapi.testclient import TestClient
 from api.main import create_app
 from api.repository import InMemoryRepository
 from api.schemas import MAX_BATCH_SIZE
-from src.config import FEATURES
+from src.config import FEATURES, MODELS_DIR
 from src.data.generate import generate_dataset
 
 API_KEY = "cle-de-test"
+# Version en production (v1, ou plus récente après un réentraînement promu).
+CHAMPION = json.loads((MODELS_DIR / "champion.json").read_text())["version"]
 HEADERS = {"X-API-Key": API_KEY}
 
 
@@ -58,7 +61,7 @@ def test_model_info(client):
     response = client.get("/model-info", headers=HEADERS)
     assert response.status_code == 200
     body = response.json()
-    assert body["version"] == "v1"
+    assert body["version"] == CHAMPION
     assert "pr_auc" in body["test_metrics"]
     assert "explain_info" not in body  # les références internes ne sont pas exposées
 
@@ -96,7 +99,7 @@ def test_prediction_complete(client, payloads):
     body = response.json()
     assert 0 <= body["suspicion_score"] <= 1
     assert body["priority"] in {"haute", "moyenne", "basse"}
-    assert body["model_version"] == "v1"
+    assert body["model_version"] == CHAMPION
     assert len(body["reasons"]) == 3
     assert all(reason["text"] for reason in body["reasons"])
 

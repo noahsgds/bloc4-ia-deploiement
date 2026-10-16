@@ -43,56 +43,23 @@ from src.config import (
     REVIEW_SHARE,
     TARGET,
 )
-from src.data.generate import generate_dataset
 from src.data.validate import validate_dataset
 from src.evaluate import compute_metrics
-from src.train import data_fingerprint, load_champion
+from src.lineage import SCENARIOS, load_training_data, scenario_data
+from src.train import load_champion
 
 FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
-
-# Les trois situations de la démo. Graine et dates différentes de l'entraînement :
-# ce sont de NOUVEAUX joueurs, sur une période postérieure (octobre 2026).
-SCENARIOS = {
-    "normal": {"cheat_intensity": 1.0, "game_patch": False},
-    "patch": {"cheat_intensity": 1.0, "game_patch": True},
-    "humanisee": {"cheat_intensity": 0.4, "game_patch": False},
-}
-SCENARIO_ROWS = 30_000  # environ une journée d'activité
-SCENARIO_SEED = 2026
-SCENARIO_START = "2026-10-01"
 
 
 # --- Données ----------------------------------------------------------------------------
 
 
 def load_reference(metadata: dict) -> pd.DataFrame:
-    """Régénère le jeu d'entraînement du modèle et vérifie que c'est bien le même.
+    """Reconstruit le jeu d'entraînement du modèle en production (voir src/lineage.py).
 
-    Les données ne sont pas versionnées dans Git (elles sont régénérables) : on les
-    recrée à partir de la graine et du nombre de lignes enregistrés dans les métadonnées,
-    puis on compare l'empreinte. Si elle diffère, la comparaison n'aurait aucun sens.
+    L'empreinte est vérifiée : si les données diffèrent, la comparaison n'aurait aucun sens.
     """
-    data_info = metadata["data"]
-    reference = generate_dataset(n_matches=data_info["n_rows"], seed=metadata["seed"])
-    fingerprint = data_fingerprint(reference)
-    if fingerprint != data_info["fingerprint"]:
-        raise RuntimeError(
-            f"Données de référence différentes de celles de l'entraînement "
-            f"(empreinte {fingerprint} au lieu de {data_info['fingerprint']})."
-        )
-    return reference
-
-
-def scenario_data(name: str) -> pd.DataFrame:
-    """Crée les matchs "récents" d'un scénario de démonstration."""
-    if name not in SCENARIOS:
-        raise ValueError(f"Scénario inconnu : {name}. Choix : {', '.join(SCENARIOS)}")
-    return generate_dataset(
-        n_matches=SCENARIO_ROWS,
-        seed=SCENARIO_SEED,
-        start_date=SCENARIO_START,
-        **SCENARIOS[name],
-    )
+    return load_training_data(metadata)
 
 
 # --- Règles de décision (logique pure, testée sans Evidently) ---------------------------
