@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Installer Python 3.11 (même version que l'image Docker)
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip # garde les bibliothèques téléchargées entre deux exécutions
