@@ -149,6 +149,28 @@ Le temps croît proportionnellement au volume. Le modèle n'est donc pas le goul
 d'étranglement : la montée en charge se joue au niveau de l'API (plusieurs instances sans
 état derrière un répartiteur de charge).
 
+## CI/CD (GitHub Actions)
+
+| Workflow | Déclencheur | Étapes |
+|---|---|---|
+| `ci.yml` | Chaque push et chaque Pull Request | ruff → tests pytest (avec une vraie base Postgres) → construction de l'image Docker → démarrage et prédiction de test dans le conteneur |
+| `cd.yml` | Publication d'un tag `vX.Y.Z` | CI complète → image multi-architecture publiée sur `ghcr.io` → Release GitHub avec les notes du CHANGELOG → déploiement sur la machine d'exploitation avec test de fonctionnement et retour automatique à la version précédente en cas d'échec |
+| `dependabot.yml` | Chaque semaine | Pull Requests automatiques de mise à jour des dépendances (pip, Actions, Docker) |
+
+Publier une nouvelle version :
+
+```bash
+# 1. ajouter la section de la version dans CHANGELOG.md, puis :
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+Sécurité du pipeline : permissions minimales déclarées job par job ; secrets (`API_KEY`,
+`POSTGRES_PASSWORD`) stockés dans les secrets GitHub et jamais écrits dans le code ; jeton
+GitHub temporaire pour le registre ; le fichier de configuration du déploiement est créé
+avec des droits restreints puis supprimé ; l'image déployée est exactement celle testée par
+la CI.
+
 ## Qualité du code
 
 - Tests automatisés : `pytest`

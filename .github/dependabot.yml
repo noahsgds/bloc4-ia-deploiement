@@ -1,0 +1,18 @@
+# Dependabot : GitHub vérifie chaque semaine si les dépendances ont des mises à jour,
+# notamment de sécurité, et ouvre automatiquement une Pull Request. La CI teste alors la
+# mise à jour avant toute fusion (critères 2.4 et 4.6).
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly

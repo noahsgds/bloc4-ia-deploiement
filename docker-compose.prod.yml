@@ -1,0 +1,12 @@
+# Surcharge de production : l'API utilise l'image PUBLIÉE par la CD (ghcr.io)
+# au lieu de reconstruire l'image à partir du code local.
+#
+# Utilisé par le job de déploiement (.github/workflows/cd.yml) :
+#   SENTINEL_VERSION=1.0.0 docker compose -p sentinel-prod \
+#     -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  api:
+    image: ghcr.io/noahsgds/sentinel-api:${SENTINEL_VERSION:?version à déployer manquante}
+    build: !reset null # ne jamais reconstruire : on déploie exactement l'image testée par la CI
+    pull_policy: always
