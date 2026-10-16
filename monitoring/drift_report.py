@@ -1,4 +1,4 @@
-"""Surveillance du modèle en production (étape 9) — critères 4.6 et 4.7 du bloc 4.
+"""Surveillance du modèle (étape 9) — critères 3.4 (dérive) et 2.3 (alertes) du bloc 4.
 
 Deux questions, deux contrôles :
 

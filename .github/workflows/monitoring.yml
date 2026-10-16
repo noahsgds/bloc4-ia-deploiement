@@ -1,4 +1,4 @@
-# Surveillance du modèle en production — critères 4.6 et 4.7
+# Surveillance du modèle en production — critères 3.4 (dérive du modèle) et 2.3 (alertes) du bloc 4
 #
 # Chaque jour (et à la demande), GitHub :
 #   1. compare les matchs récents aux données d'entraînement (dérive des données, Evidently) ;

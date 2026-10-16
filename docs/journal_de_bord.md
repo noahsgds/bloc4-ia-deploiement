@@ -15,16 +15,16 @@
 | 4 | Explicabilité SHAP, audit d'équité, notebooks | ✅ | Notebooks exécutés sur le Mac |
 | 5 | Robustesse et montée en charge | ✅ | 22 tests |
 | 6 | API FastAPI, Postgres, droits RGPD, Docker | ✅ | Parcours de 6 tests validé sur le Mac |
-| 6b | Console de modération | ✅ | Parcours vérifié dans un navigateur ; test sur le Mac à confirmer |
+| 6b | Console de modération | ✅ | Toutes les pages validées sur le Mac |
 | 7 | Documentation RGPD détaillée | ⏳ | — |
-| 8 | CI/CD GitHub Actions | ⏳ | — |
-| 9 | Monitoring de la dérive (Evidently) | ⏳ | — |
+| 8 | CI/CD GitHub Actions | ✅ | CI verte sur GitHub ; tag v1.0.0 à pousser par Noah |
+| 9 | Monitoring de la dérive (Evidently) | ✅ | 3 scénarios testés dans la CI |
 | 10 | Réentraînement automatisé | ⏳ | — |
 | 11 | Documentation finale (architecture, fiche modèle, traçabilité) | ⏳ | — |
 | 12 | Slides et vidéo | ⏳ | — |
 | 13 | Audit final contre la grille et entraînement au jury | ⏳ | — |
 
-Total actuel : **108 tests automatisés**, `ruff` sans erreur, 4 Pull Requests fusionnées.
+Total actuel : **119 tests automatisés**, `ruff` sans erreur, 7 Pull Requests fusionnées.
 
 ---
 
@@ -197,9 +197,39 @@ Total actuel : **108 tests automatisés**, `ruff` sans erreur, 4 Pull Requests f
 - **Accessibilité** : lien d'évitement, navigation clavier, focus visible, priorité indiquée par une icône et un texte, tableau de données sous chaque graphique, animations désactivées si l'utilisateur le demande.
 - **Validation :** parcours complet vérifié dans Chromium (import de 153 lignes, dont 150 valides et 3 rejetées, analyse, fiche, décision, filtres). **Test sur le Mac à confirmer.**
 
+## Étape 8 — CI/CD avec GitHub Actions
+
+**Fichiers :** `.github/workflows/ci.yml`, `cd.yml`, `.github/dependabot.yml`, `docker-compose.prod.yml`, `CHANGELOG.md`
+
+- **CI** à chaque push et Pull Request : ruff, 108 tests avec une vraie base Postgres, construction de l'image, démarrage et prédiction de test dans le conteneur.
+- **CD** à chaque tag `vX.Y.Z` : CI complète, image multi-architecture publiée sur `ghcr.io`, Release GitHub avec les notes du CHANGELOG, puis déploiement (si activé) sur un runner auto-hébergé avec test de fonctionnement et retour à la version précédente en cas d'échec.
+- **Sécurité** : permissions minimales job par job, secrets GitHub, `.env` créé en `umask 077` puis supprimé, image déployée identique à l'image testée.
+- **Validation :** CI verte sur GitHub. Le tag `v1.0.0` n'a pas pu être poussé depuis l'environnement de Claude (droits refusés) : **à pousser par Noah**.
+
+## Étape 9 — Surveillance de la dérive
+
+**Fichiers :** `monitoring/drift_report.py`, `tests/test_monitoring.py`, `.github/workflows/monitoring.yml`, `src/data/generate.py` (option `--game-patch`)
+
+- **Deux contrôles séparés** : dérive des données (Evidently, sans étiquettes, quotidienne) et performance (PR-AUC et faux positifs sur les fiches dont la vérité est connue).
+- **Trois scénarios** sur 30 000 nouvelles lignes :
+
+| Scénario | Dérive des données | PR-AUC | Faux positifs | Statut |
+|---|---|---|---|---|
+| Normal | 0 / 13 variables | 0,56 | 1,0 % | ok |
+| Patch du jeu | 4 / 13 | 0,54 | 4,8 % | alerte |
+| Triche humanisée | 0 / 13 | 0,15 | 1,0 % | alerte |
+
+- **Décisions :**
+  - Distance de Wasserstein normalisée plutôt que test de Kolmogorov-Smirnov : le test KS produisait de fausses alertes (lignes d'un même joueur non indépendantes, très gros volumes).
+  - Seuils : 0,1 par variable (défaut Evidently), alerte si 25 % des variables dérivent, PR-AUC −0,10, faux positifs > 2 %.
+  - La référence est régénérée depuis la graine du modèle et vérifiée par son empreinte (les données ne sont pas versionnées).
+  - Alerte = ticket GitHub avec raisons et actions attendues ; aucune action automatique sur les joueurs.
+- **À dire au jury :** la triche humanisée est invisible pour la dérive des données ; seule la vérité terrain la révèle. Le patch, lui, accuse des innocents. Limite : la vérité n'est connue que pour les fiches examinées ; parade = échantillon de contrôle tiré au hasard chaque jour.
+- **Validation :** 8 tests de logique en local, 3 tests de bout en bout avec Evidently dans la CI.
+
 ---
 
-## Couverture de la grille (état au 16/10)
+## Couverture de la grille (état au 16/10, après l'étape 9)
 
 | Critère | État | Où |
 |---|---|---|
@@ -210,11 +240,12 @@ Total actuel : **108 tests automatisés**, `ruff` sans erreur, 4 Pull Requests f
 | 1.5 Explicabilité | 🟢 | SHAP en français, notebook 03, console |
 | 2.1 Compatibilité avec l'infrastructure | 🟢 | Contrat de données, Postgres, JSON |
 | 2.2 Temps de réponse et ressources | 🟢 | p95 ≈ 5 ms, limites Compose |
-| 2.3 Erreurs, logs, alertes | 🟡 | Erreurs et logs faits ; **alertes à l'étape 9** |
+| 2.3 Erreurs, logs, alertes | 🟢 | Erreurs, logs JSON, ticket GitHub automatique en cas de dérive |
 | 2.4 Maintenabilité | 🟢 | Modules, 108 tests, versions |
 | 2.5 Sécurité | 🟢 | Clé, validation, SQL paramétré, CSP |
-| 3.1 à 3.5 Réentraînement | 🔴 | Étapes 9 et 10 (reproductibilité déjà prête : graine, empreinte, commit) |
-| 4.1 à 4.6 CI/CD | 🔴 | Étape 8 |
+| 3.4 Détection de la dérive | 🟢 | `monitoring/drift_report.py`, workflow quotidien, 3 scénarios |
+| 3.1, 3.2, 3.3, 3.5 Réentraînement | 🔴 | Étape 10 (reproductibilité déjà prête : graine, empreinte, commit) |
+| 4.1 à 4.6 CI/CD | 🟢 | `ci.yml`, `cd.yml`, Dependabot, CHANGELOG. Déploiement automatique : choix du runner à faire |
 | 5.1 et 5.2 RGPD / Informatique et Libertés | 🟡 | Droits d'accès et d'effacement, purge, minimisation ; **registre à rédiger (étape 7)** |
 | 5.3 Sécurité | 🟡 | Mesures techniques faites ; **2FA GitHub et FileVault à confirmer** |
 | 5.4 ISO 27001 | 🟡 | Principes à documenter (étape 7, lien avec le bloc 1) |
@@ -226,7 +257,7 @@ Total actuel : **108 tests automatisés**, `ruff` sans erreur, 4 Pull Requests f
 
 ## Points ouverts
 
-1. **Self-hosted runner** sur le Mac pour un déploiement entièrement automatique (critère 4.4). Décision à prendre à l'étape 8.
+1. **Déploiement** : choisir A (runner auto-hébergé sur le Mac, secrets `API_KEY` et `POSTGRES_PASSWORD`, variable `DEPLOY_ENABLED=true`) ou B (publication seule). Recommandé : A. Puis pousser le tag `v1.0.0`.
 2. **2FA GitHub et FileVault** à activer ou confirmer (critère 5.3).
 3. Notebook 03 : afficher 3 joueurs **différents** dans les explications individuelles.
 4. Quand le démarrage de l'API échoue, le conteneur redémarre en boucle : prévoir un arrêt propre.
@@ -235,4 +266,4 @@ Total actuel : **108 tests automatisés**, `ruff` sans erreur, 4 Pull Requests f
 
 ## Prochaine étape
 
-**Étape 8 : CI/CD avec GitHub Actions.** Tests, ruff et build Docker à chaque push, publication de l'image à chaque version, déploiement automatique.
+**Étape 10 : réentraînement automatisé.** Déclenché par une alerte de surveillance ou à la demande ; promotion du nouveau modèle seulement s'il est meilleur ET équitable ; versionnement et retour arrière.

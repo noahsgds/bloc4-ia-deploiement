@@ -6,6 +6,7 @@
 """
 
 import json
+import os
 
 import pytest
 
@@ -90,7 +91,10 @@ def test_scenario_inconnu_refuse():
 
 @pytest.fixture(scope="module")
 def run_scenario(tmp_path_factory):
-    pytest.importorskip("evidently")
+    if os.getenv("CI"):
+        import evidently  # noqa: F401  (dans la CI GitHub, ces tests ne doivent jamais être ignorés)
+    else:
+        pytest.importorskip("evidently")
     from monitoring.drift_report import build_report
 
     reports_dir = tmp_path_factory.mktemp("rapports")
