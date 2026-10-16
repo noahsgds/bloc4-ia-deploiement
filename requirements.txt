@@ -4,7 +4,7 @@ httpx==0.28.1
 ipykernel==7.4.0
 joblib==1.6.0
 matplotlib==3.11.2
-numpy==2.4.6
+numpy==2.5.4
 pandas==3.0.6
 psycopg==3.3.6
 psycopg-binary==3.3.6
