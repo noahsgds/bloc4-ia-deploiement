@@ -193,11 +193,27 @@ def simulate_matches(
     return matches
 
 
+def apply_game_patch(matches: pd.DataFrame) -> pd.DataFrame:
+    """Simule une mise à jour du jeu ("patch 2.0") qui rend les armes plus précises.
+
+    TOUS les joueurs, honnêtes compris, visent mieux et réagissent plus vite : la
+    distribution des statistiques change (dérive des données), sans que la triche change.
+    Les décalages sont fixes (aucun tirage aléatoire), donc la reproductibilité est intacte.
+    """
+    patched = matches.copy()
+    patched["accuracy"] = (patched["accuracy"] + 0.04).clip(0.02, 0.95).round(3)
+    patched["headshot_rate"] = (patched["headshot_rate"] + 0.04).clip(0.0, 1.0).round(3)
+    patched["avg_reaction_ms"] = (patched["avg_reaction_ms"] - 20).clip(80, 800).round(1)
+    patched["kills_per_min"] = (patched["kills_per_min"] * 1.15).clip(0.0, 10.0).round(2)
+    return patched
+
+
 def generate_dataset(
     n_matches: int = 50_000,
     seed: int = RANDOM_SEED,
     cheat_intensity: float = 1.0,
     start_date: str = "2026-08-01",
+    game_patch: bool = False,
 ) -> pd.DataFrame:
     """Génère un jeu de données complet et reproductible.
 
@@ -206,6 +222,7 @@ def generate_dataset(
         seed: graine aléatoire ; la même graine donne exactement les mêmes données.
         cheat_intensity: force de la triche (1.0 = flagrante, 0.4 = humanisée / drift).
         start_date: date du premier jour de la période simulée (format AAAA-MM-JJ).
+        game_patch: True pour simuler une mise à jour du jeu (dérive des données).
 
     Returns:
         Un DataFrame avec les colonnes du contrat de données, dans l'ordre de ``ALL_COLUMNS``.
@@ -219,6 +236,8 @@ def generate_dataset(
     n_players = max(1, n_matches // MATCHES_PER_PLAYER)
     players = generate_players(n_players, rng)
     matches = simulate_matches(players, n_matches, rng, cheat_intensity, start_date)
+    if game_patch:
+        matches = apply_game_patch(matches)
     return matches[ALL_COLUMNS]
 
 
@@ -229,10 +248,13 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument("--cheat-intensity", type=float, default=1.0)
     parser.add_argument("--start-date", default="2026-08-01")
+    parser.add_argument("--game-patch", action="store_true", help="simule une mise à jour du jeu")
     parser.add_argument("--output", type=Path, default=Path("data/train.csv"))
     args = parser.parse_args()
 
-    df = generate_dataset(args.n_matches, args.seed, args.cheat_intensity, args.start_date)
+    df = generate_dataset(
+        args.n_matches, args.seed, args.cheat_intensity, args.start_date, args.game_patch
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.output, index=False)
     print(

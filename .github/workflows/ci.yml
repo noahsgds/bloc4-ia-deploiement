@@ -74,6 +74,18 @@ jobs:
       - name: Lancer les tests (pytest)
         run: pytest -v --junitxml=rapport-tests.xml
 
+      - name: Afficher les tests en échec dans le résumé GitHub
+        if: failure()
+        run: |
+          # Chaque test en échec devient une annotation visible directement sur la PR.
+          python - <<'EOF'
+          import xml.etree.ElementTree as ET
+          for case in ET.parse("rapport-tests.xml").iter("testcase"):
+              for problem in list(case.findall("failure")) + list(case.findall("error")):
+                  message = (problem.get("message") or "").replace("\n", " ")[:300]
+                  print(f"::error title={case.get('classname')}.{case.get('name')}::{message}")
+          EOF
+
       - name: Conserver le rapport de tests
         if: always() # même si les tests échouent : c'est là qu'on en a le plus besoin
         uses: actions/upload-artifact@v4

@@ -1,0 +1,89 @@
+# Surveillance du modèle en production — critères 4.6 et 4.7
+#
+# Chaque jour (et à la demande), GitHub :
+#   1. compare les matchs récents aux données d'entraînement (dérive des données, Evidently) ;
+#   2. recalcule les performances sur les fiches dont la vérité est connue ;
+#   3. publie le rapport HTML en "artefact" téléchargeable ;
+#   4. en cas d'alerte, ouvre un ticket (issue) GitHub pour l'équipe et marque l'exécution en rouge.
+#
+# Démo : les "matchs récents" sont synthétiques. Le choix du scénario (normal, patch,
+# humanisee) permet de montrer au jury une exécution sans alerte et deux alertes différentes.
+# En production réelle, on remplacerait --scenario par un export des matchs de la veille.
+
+name: Surveillance du modèle
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # tous les jours à 6 h 17 UTC (minute décalée pour éviter l'heure pile)
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Situation à simuler"
+        type: choice
+        options: [normal, patch, humanisee]
+        default: normal
+
+permissions:
+  contents: read
+  issues: write # ouvrir un ticket en cas d'alerte, rien d'autre
+
+jobs:
+  surveiller:
+    name: Dérive des données et performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SCENARIO: ${{ inputs.scenario || 'normal' }}
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Installer les dépendances (versions figées)
+        run: pip install -r requirements.txt
+
+      - name: Lancer le contrôle
+        run: python -m monitoring.drift_report --scenario "$SCENARIO"
+
+      - name: Conserver le rapport
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-derive-${{ env.SCENARIO }}
+          path: monitoring/reports/
+          retention-days: 30
+
+      - name: Ouvrir un ticket en cas d'alerte
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          status=$(python -c "import json; print(json.load(open('monitoring/reports/dernier_resume.json'))['status'])")
+          echo "Statut : ${status}"
+          if [ "$status" != "alerte" ]; then
+            exit 0
+          fi
+          python - <<'EOF' > ticket.md
+          import json, os
+          s = json.load(open("monitoring/reports/dernier_resume.json"))
+          print(f"Le contrôle du {s['created_at']} (modèle {s['model_version']}, "
+                f"{s['n_rows']} lignes, scénario `{s['label']}`) a levé une alerte.\n")
+          print("**Raisons**\n")
+          for r in s["reasons"]:
+              print(f"- {r}")
+          print("\n**Actions attendues**\n")
+          print("1. Ouvrir le rapport HTML (artefact de l'exécution) et identifier la cause.")
+          print("2. Dérive des données seule : vérifier une mise à jour du jeu ; réentraîner si les faux positifs augmentent.")
+          print("3. Baisse de PR-AUC : nouvelle forme de triche probable, faire étiqueter des cas récents puis réentraîner.")
+          print("4. En attendant : les modérateurs restent seuls décideurs, aucune sanction automatique.\n")
+          print(f"Exécution : {os.environ['RUN_URL']}")
+          EOF
+          gh label create derive-modele --color d93f0b --description "Alerte de surveillance du modèle" 2>/dev/null || true
+          gh issue create --title "Alerte surveillance Sentinel ($SCENARIO)" --label derive-modele --body-file ticket.md
+          echo "::error::Alerte de surveillance : voir le ticket ouvert et le rapport."
+          exit 1
