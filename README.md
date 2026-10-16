@@ -10,6 +10,7 @@ probabilité de triche de chaque joueur sur chaque match.
 ## Cahier des charges
 
 Voir [docs/cahier_des_charges.md](docs/cahier_des_charges.md).
+Historique des étapes, décisions et validations : [docs/journal_de_bord.md](docs/journal_de_bord.md).
 
 ## Structure du dépôt
 
@@ -23,7 +24,7 @@ Voir [docs/cahier_des_charges.md](docs/cahier_des_charges.md).
 | `monitoring/` | Détection de drift (Evidently) |
 | `retrain/` | Réentraînement automatisé |
 | `.github/workflows/` | Pipelines CI/CD (GitHub Actions) |
-| `docs/` | Cahier des charges, architecture, RGPD, fiche modèle |
+| `docs/` | Cahier des charges, journal de bord, architecture, RGPD, fiche modèle |
 
 ## Installation
 
