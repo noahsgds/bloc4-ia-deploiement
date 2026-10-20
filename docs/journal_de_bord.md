@@ -17,7 +17,7 @@
 | 6 | API FastAPI, Postgres, droits RGPD, Docker | ✅ | Parcours de 6 tests validé sur le Mac |
 | 6b | Console de modération | ✅ | Toutes les pages validées sur le Mac |
 | 7 | Documentation RGPD détaillée | ⏳ | — |
-| 8 | CI/CD GitHub Actions | ✅ | CI verte sur GitHub ; tag v1.0.0 à pousser par Noah |
+| 8 | CI/CD GitHub Actions | ✅ | v1.0.0 publiée le 20/10 (image ghcr.io + Release) |
 | 9 | Monitoring de la dérive (Evidently) | ✅ | 3 scénarios testés dans la CI |
 | 10 | Réentraînement automatisé | ✅ | Scénarios patch et triche humanisée testés ; suite complète verte avec v1 et avec v2 en production |
 | 11 | Documentation finale (architecture, fiche modèle, traçabilité) | ⏳ | — |
@@ -204,7 +204,7 @@ Total actuel : **137 tests automatisés**, `ruff` sans erreur, 8 Pull Requests f
 - **CI** à chaque push et Pull Request : ruff, 108 tests avec une vraie base Postgres, construction de l'image, démarrage et prédiction de test dans le conteneur.
 - **CD** à chaque tag `vX.Y.Z` : CI complète, image multi-architecture publiée sur `ghcr.io`, Release GitHub avec les notes du CHANGELOG, puis déploiement (si activé) sur un runner auto-hébergé avec test de fonctionnement et retour à la version précédente en cas d'échec.
 - **Sécurité** : permissions minimales job par job, secrets GitHub, `.env` créé en `umask 077` puis supprimé, image déployée identique à l'image testée.
-- **Validation :** CI verte sur GitHub. Le tag `v1.0.0` n'a pas pu être poussé depuis l'environnement de Claude (droits refusés) : **à pousser par Noah**.
+- **Validation :** tag `v1.0.0` poussé le 20/10 : CI, publication de l'image multi-architecture et Release GitHub vertes ; déploiement ignoré (option B).
 
 ## Étape 9 — Surveillance de la dérive
 
@@ -285,7 +285,7 @@ Total actuel : **137 tests automatisés**, `ruff` sans erreur, 8 Pull Requests f
 
 ## Points ouverts
 
-1. **Déploiement** : choisir A (runner auto-hébergé sur le Mac, secrets `API_KEY` et `POSTGRES_PASSWORD`, variable `DEPLOY_ENABLED=true`) ou B (publication seule). Recommandé : A. Puis pousser le tag `v1.0.0`.
+1. **Déploiement : option B retenue le 20/10** (publication de l'image et de la Release, sans déploiement automatique). Version `v1.0.0` publiée : CI verte, image `ghcr.io/noahsgds/sentinel-api:1.0.0`, Release GitHub, job de déploiement « ignoré ». Le déploiement automatique reste prêt (`DEPLOY_ENABLED=true` + runner auto-hébergé), à expliquer au jury.
 2. **2FA GitHub et FileVault** à activer ou confirmer (critère 5.3).
 3. Notebook 03 : afficher 3 joueurs **différents** dans les explications individuelles.
 4. Quand le démarrage de l'API échoue, le conteneur redémarre en boucle : prévoir un arrêt propre.
