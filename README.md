@@ -167,6 +167,14 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
+**Choix de déploiement retenu : publication sans déploiement automatique.** Il n'y a pas
+de serveur de production dans ce projet (pas de cloud payant). La CD s'arrête donc à la
+publication de l'image testée et de la Release ; on déploie avec
+`SENTINEL_VERSION=1.0.0 docker compose -p sentinel-prod -f docker-compose.yml -f docker-compose.prod.yml up -d`.
+Le job de déploiement automatique (test de fonctionnement et retour arrière) est prêt : il
+suffit d'enregistrer une machine comme runner auto-hébergé et de créer la variable
+`DEPLOY_ENABLED=true`. Un runner auto-hébergé n'est acceptable que sur un dépôt privé.
+
 Sécurité du pipeline : permissions minimales déclarées job par job ; secrets (`API_KEY`,
 `POSTGRES_PASSWORD`) stockés dans les secrets GitHub et jamais écrits dans le code ; jeton
 GitHub temporaire pour le registre ; le fichier de configuration du déploiement est créé
