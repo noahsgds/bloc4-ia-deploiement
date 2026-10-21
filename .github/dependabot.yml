@@ -1,6 +1,15 @@
 # Dependabot : GitHub vérifie chaque semaine si les dépendances ont des mises à jour,
 # notamment de sécurité, et ouvre automatiquement une Pull Request. La CI teste alors la
 # mise à jour avant toute fusion (critères 2.4 et 4.6).
+#
+# Politique de mise à jour (décidée le 21/10/2026) :
+# - bibliothèques Python : correctifs (x.y.Z) proposés chaque semaine ; les versions
+#   mineures et majeures changent les calculs du modèle (numpy, scikit-learn, shap) et
+#   imposent de réentraîner et revalider : elles sont faites à la main, pas en continu.
+#   Les alertes de sécurité de GitHub restent actives pour TOUTES les versions.
+# - image Docker : Python reste en 3.11, la version utilisée par la CI et l'entraînement
+#   (un modèle sérialisé avec joblib doit être rechargé avec les mêmes versions).
+# - actions GitHub : toutes les mises à jour sont proposées, regroupées en une seule PR.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -8,11 +17,22 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
   - package-ecosystem: docker
     directory: "/"
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]

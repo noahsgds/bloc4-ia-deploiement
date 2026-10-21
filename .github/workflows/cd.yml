@@ -41,7 +41,7 @@ jobs:
       packages: write # publier l'image sur ghcr.io
     steps:
       - name: Récupérer le code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Préparer la construction multi-architecture
         uses: docker/setup-qemu-action@v3
@@ -107,7 +107,7 @@ jobs:
       API_PORT: "8080" # l'environnement de production écoute sur 8080, le développement sur 8000
     steps:
       - name: Récupérer le code de la version
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Écrire la configuration à partir des secrets GitHub
         env:
