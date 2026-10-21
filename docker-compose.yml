@@ -47,11 +47,39 @@ services:
     read_only: true # système de fichiers en lecture seule (sécurité)
     tmpfs:
       - /tmp # seul dossier inscriptible (cache de calcul)
+    cap_drop: [ALL] # aucun privilège système Linux : l'API n'en a pas besoin
+    security_opt:
+      - no-new-privileges:true # interdit toute élévation de privilèges dans le conteneur
     deploy:
       resources:
         limits:
           cpus: "2"
           memory: 1G
+
+  # Purge quotidienne des données de plus de 12 mois (RGPD, limitation de conservation).
+  # Même image que l'API, sans port exposé ; une exécution par jour.
+  purge:
+    image: sentinel-api:local
+    command: ["sh", "-c", "while true; do python -m api.purge; sleep 86400; done"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started # l'image est construite par le service api
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
 volumes:
   pgdata:

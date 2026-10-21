@@ -16,7 +16,7 @@
 
 ## 2. Objectif
 
-Attribuer à **chaque** couple **(joueur, match)** une **probabilité de triche**, signalé ou non, afin de **prioriser la file de revue** des modérateurs : les 300 cas les plus suspects de la journée sont examinés en premier.
+Attribuer à **chaque** couple **(joueur, match)** un **score de suspicion** (entre 0 et 1, qui sert à trier ; ce n'est pas une probabilité calibrée), signalé ou non, afin de **prioriser la file de revue** des modérateurs : les 300 cas les plus suspects de la journée sont examinés en premier.
 
 - **Définition de la cible :** `is_cheater = 1` si le compte a été banni pour triche après revue humaine. Dans les données synthétiques, la vérité est connue. En conditions réelles, ces étiquettes seraient imparfaites (des tricheurs ne sont jamais détectés).
 - **Usage :** aide à la décision uniquement. **Le modèle ne bannit jamais seul.** Un modérateur valide chaque sanction (article 22 du RGPD : pas de décision fondée exclusivement sur un traitement automatisé).
@@ -100,10 +100,10 @@ Le taux de faux positifs est retenu comme métrique d'équité car le préjudice
 - **Base légale :** exécution du contrat (les conditions d'utilisation interdisent la triche) et intérêt légitime (garantir des parties équitables).
 - **Pas de bannissement automatique :** revue humaine systématique ; explication de la décision ; procédure de contestation.
 - **Mineurs :** jeu PEGI 16, joueurs de 16-17 ans présents (consentement numérique à 15 ans en France). Explications compréhensibles, aucun profilage marketing à partir de ces données.
-- **Droits des personnes :** `GET` et `DELETE /players/{id}/predictions` (accès et effacement), protégés et journalisés. Exception : les éléments justifiant un bannissement en cours de contestation sont conservés jusqu'à la fin du litige.
+- **Droits des personnes :** `GET` et `DELETE /players/{id}/data` (accès et effacement), protégés et journalisés. Exception : les éléments justifiant un bannissement en cours de contestation sont conservés jusqu'à la fin du litige.
 - **Droit de rectification :** les statistiques proviennent des serveurs de jeu. Une erreur alléguée est traitée via la procédure de contestation, qui peut aboutir à la correction ou à l'annulation des données et de la décision.
-- **Conservation :** statistiques de match 6 mois ; logs de prédiction 12 mois, puis purge automatique.
-- **Registre des traitements :** une fiche décrit le traitement (finalité, base légale, catégories de données, destinataires, durées de conservation, mesures de sécurité).
+- **Conservation :** statistiques de match brutes (serveurs de jeu) 6 mois ; journal des prédictions et décisions des modérateurs 12 mois, puis purge automatique quotidienne.
+- **Registre des traitements, AIPD et procédures :** détaillés dans `docs/rgpd.md` ; politique et analyse des risques de sécurité dans `docs/securite.md`.
 
 ### Variables d'audit et risque de donnée sensible par inférence
 

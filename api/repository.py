@@ -89,11 +89,12 @@ class InMemoryRepository:
     def recent_predictions(self, limit: int) -> list[dict]:
         return sorted(self.predictions, key=lambda p: p["created_at"], reverse=True)[:limit]
 
-    def purge_older_than(self, days: int) -> int:
+    def purge_older_than(self, days: int) -> tuple[int, int]:
         limit = _now() - timedelta(days=days)
-        before = len(self.predictions)
+        n_pred, n_dec = len(self.predictions), len(self.decisions)
         self.predictions = [p for p in self.predictions if p["created_at"] >= limit]
-        return before - len(self.predictions)
+        self.decisions = [d for d in self.decisions if d["created_at"] >= limit]
+        return n_pred - len(self.predictions), n_dec - len(self.decisions)
 
 
 class PostgresRepository:
@@ -191,10 +192,19 @@ class PostgresRepository:
                 (limit,),
             ).fetchall()
 
-    def purge_older_than(self, days: int) -> int:
-        """Supprime les prédictions plus anciennes que la durée de conservation."""
+    def purge_older_than(self, days: int) -> tuple[int, int]:
+        """Supprime prédictions et décisions plus anciennes que la durée de conservation.
+
+        Returns:
+            (nombre de prédictions supprimées, nombre de décisions supprimées)
+        """
         with self._connect() as conn:
-            return conn.execute(
+            n_pred = conn.execute(
                 "DELETE FROM predictions WHERE created_at < now() - make_interval(days => %s)",
                 (days,),
             ).rowcount
+            n_dec = conn.execute(
+                "DELETE FROM decisions WHERE created_at < now() - make_interval(days => %s)",
+                (days,),
+            ).rowcount
+        return n_pred, n_dec
