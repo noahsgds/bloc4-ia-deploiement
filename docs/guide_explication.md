@@ -212,7 +212,7 @@ examiner un petit échantillon tiré au hasard chaque jour.
 
 ---
 
-## 12. Le réentraînement — `monitoring/retrain.py` (critères 3.1, 3.2, 3.3, 3.5)
+## 12. Le réentraînement — `retrain/retrain.py` (critères 3.1, 3.2, 3.3, 3.5)
 
 **Ce que c'est :** après une alerte, on réentraîne sur les fiches récentes. L'ancien et le
 nouveau modèle passent le **même examen** sur des fiches qu'aucun n'a vues. Le nouveau ne
@@ -230,7 +230,7 @@ triche qui ne laisse plus de trace dans mes variables : là, il faut de nouvelle
 par exemple la trajectoire de la visée. »
 
 **Traçabilité :** chaque version garde sa graine, l'empreinte de ses données, le commit du
-code et sa version parente. Retour arrière : `python -m monitoring.retrain --rollback v1`.
+code et sa version parente. Retour arrière : `python -m retrain.retrain --rollback v1`.
 
 **Question probable** — *Pourquoi seulement les fiches récentes ?* Après une mise à jour,
 les anciennes statistiques décrivent un jeu qui n'existe plus.

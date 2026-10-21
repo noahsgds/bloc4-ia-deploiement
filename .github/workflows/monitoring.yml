@@ -4,7 +4,7 @@
 #   1. compare les fiches récentes aux données d'entraînement et recalcule la performance ;
 #   2. garde le rapport HTML Evidently (téléchargeable dans l'exécution) ;
 #   3. en cas d'alerte, ouvre un ticket (issue) GitHub pour l'équipe.
-# Le réentraînement est ensuite lancé par une personne : python -m monitoring.retrain
+# Le réentraînement est ensuite lancé par une personne : python -m retrain.retrain
 #
 # Démo : les fiches récentes sont synthétiques ; le scénario choisit la situation simulée.
 

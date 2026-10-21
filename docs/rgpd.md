@@ -22,7 +22,7 @@
 | Sous-traitants | Hébergement de production (dans l'UE) ; GitHub héberge le **code** et les modèles, jamais de données de joueurs (les tests et la CI utilisent des données synthétiques). |
 | Transferts hors UE | Aucun transfert de données de joueurs. |
 | Durées de conservation | Statistiques de match brutes (serveurs de jeu, bloc 3) : 6 mois. Journal des prédictions (score, statistiques utilisées, version du modèle) et décisions des modérateurs : **12 mois**, puis purge automatique quotidienne (`api/purge.py`, service `purge` de Docker Compose). Exception : dossier d'une sanction contestée, conservé jusqu'à la fin de la procédure. |
-| Mesures de sécurité | Voir `docs/securite.md` : clé d'API, base non exposée, conteneurs durcis, secrets hors du code, chiffrement du disque, journalisation, revue des dépendances. |
+| Mesures de sécurité | Voir `docs/securite.md` : clé d'API, base non exposée, conteneurs durcis, secrets hors du code, sauvegardes chiffrées, journalisation, revue des dépendances. |
 | AIPD | Requise et réalisée (section 6). |
 | Date de la fiche | 21/10/2026 (revue annuelle, ou à chaque changement de finalité, de données ou de modèle) |
 

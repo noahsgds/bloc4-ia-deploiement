@@ -12,6 +12,9 @@ suspicion** et 3 raisons en français, pour examiner d'abord les cas les plus su
 |---|---|
 | [Cahier des charges](docs/cahier_des_charges.md) | Besoin, données, métriques, exigences, critères d'acceptation |
 | [Guide d'explication](docs/guide_explication.md) | Chaque partie du projet expliquée simplement, et ce qu'il faut dire au jury |
+| [Architecture](docs/architecture.md) | Schéma, composants, flux, lien avec les autres blocs |
+| [Fiche du modèle](docs/fiche_modele.md) | Données, résultats, équité, limites, usages exclus |
+| [Matrice de traçabilité](docs/matrice_tracabilite.md) | Chaque exigence reliée au code et au test qui la vérifie |
 | [RGPD](docs/rgpd.md) et [sécurité](docs/securite.md) | Registre, droits, analyse d'impact ; politique et analyse des risques |
 | [Journal de bord](docs/journal_de_bord.md) | Étapes, décisions et validations |
 
@@ -32,7 +35,8 @@ Fiches de fin de match ──► API (FastAPI) ──► modèle ──► score
 |---|---|
 | `src/` | `data.py` (données synthétiques + contrôle du format), `model.py` (entraînement, mesures, équité), `explain.py` (raisons en français, SHAP) |
 | `api/` | `main.py` (routes et sécurité), `schemas.py` (format des requêtes), `repository.py` (Postgres), `purge.py` (RGPD), `static/console/` (page web) |
-| `monitoring/` | `monitor.py` (surveillance de la dérive, Evidently), `retrain.py` (réentraînement) |
+| `monitoring/` | `monitor.py` : surveillance de la dérive (Evidently) |
+| `retrain/` | `retrain.py` : réentraînement et retour arrière |
 | `models/` | Modèle en production, sa fiche JSON et son échantillon de référence |
 | `notebooks/` | Exploration, modélisation, explicabilité et équité |
 | `tests/` | 50 tests automatisés (pytest) |
@@ -51,8 +55,8 @@ pip install -r requirements.txt
 |---|---|
 | `python -m src.model` | Génère 50 000 fiches, entraîne, évalue et enregistre le modèle v1 |
 | `python -m monitoring.monitor --scenario patch` | Contrôle de dérive (scénarios : `normal`, `patch`, `humanisee`) |
-| `python -m monitoring.retrain --scenario patch` | Réentraîne et remplace le modèle s'il est meilleur et équitable |
-| `python -m monitoring.retrain --rollback v1` | Revient à la version v1 |
+| `python -m retrain.retrain --scenario patch` | Réentraîne et remplace le modèle s'il est meilleur et équitable |
+| `python -m retrain.retrain --rollback v1` | Revient à la version v1 |
 | `pytest -v` | Lance tous les tests |
 | `ruff check .` | Vérifie le style et les erreurs courantes |
 
@@ -122,7 +126,7 @@ L'image déployée est exactement celle que la CI a testée.
 2. *Le modèle se trompe-t-il davantage ?* Sur les fiches dont la vérité est connue :
    alerte si la PR-AUC perd plus de 0,10 ou si plus de 2 % d'honnêtes sont signalés.
 
-**Réentraînement** (`monitoring/retrain.py`) : un nouveau modèle apprend sur 70 % des fiches
+**Réentraînement** (`retrain/retrain.py`) : un nouveau modèle apprend sur 70 % des fiches
 récentes ; l'ancien et le nouveau passent le même examen sur les 30 % restants. Le nouveau
 remplace l'ancien seulement s'il est **meilleur**, signale **au plus 1,5 % d'honnêtes** et
 reste **équitable**. Chaque version garde sa graine, l'empreinte de ses données, le commit
@@ -142,6 +146,11 @@ faire examiner chaque jour un petit échantillon tiré au hasard pour mesurer sa
 
 ## Choix techniques
 
+- **Un seul dépôt plutôt que deux** (l'énoncé cite un dépôt « modèle » et un dépôt
+  « déploiement ») : les dossiers attendus sont tous présents (`/notebooks`, `/src`, `/tests`,
+  `/models`, `requirements.txt` ; `/api`, `/monitoring`, `/retrain`, `Dockerfile`,
+  `.github/workflows/`). Un seul dépôt garantit que l'API sert exactement le modèle testé
+  dans le même commit, et évite de synchroniser deux historiques pour une équipe d'une personne.
 - **Docker Compose plutôt que Kubernetes** (`/k8s` de l'énoncé) : un seul serveur, trois
   services, charge modérée. Kubernetes apporterait la mise à l'échelle automatique au prix
   d'une complexité non justifiée. L'API étant sans état, une migration ne changerait pas le code.

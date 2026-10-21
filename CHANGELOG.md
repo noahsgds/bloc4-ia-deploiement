@@ -16,7 +16,7 @@ numérotation [SemVer](https://semver.org/lang/fr/) : MAJEUR.MINEUR.CORRECTIF.
 - Scénarios de démonstration : normal, mise à jour du jeu (`patch`), triche humanisée.
 - Réentraînement sur les fiches récentes avec 3 règles de promotion (meilleur, au plus
   1,5 % d'honnêtes signalés, équitable) et retour arrière
-  (`python -m monitoring.retrain --rollback <version>`).
+  (`python -m retrain.retrain --rollback <version>`).
 - Échantillon de référence enregistré avec chaque modèle (sans identifiant ni variable d'audit).
 - Documentation RGPD (registre, AIPD, procédure des droits) et sécurité (politique,
   analyse des risques, principes ISO 27001) ; guide d'explication du projet.

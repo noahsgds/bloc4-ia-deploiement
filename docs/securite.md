@@ -25,7 +25,8 @@
 3. Toute modification passe par une Pull Request testée automatiquement (CI).
 4. Toute mise en production (code ou modèle) est validée par un humain.
 5. Dépendances figées et surveillées chaque semaine.
-6. Comptes protégés par double authentification (GitHub) ; disque du poste chiffré.
+6. Comptes protégés par double authentification (GitHub) ; disque du poste d'exploitation
+   chiffré (FileVault) — exigé en production, non activé sur le poste de démonstration.
 
 ## 2. Analyse des risques
 
@@ -40,7 +41,7 @@
 | R5 | Compromission d'un conteneur | 1 | 3 | 3 | Utilisateur non root, système de fichiers en lecture seule, aucun privilège Linux (`cap_drop: ALL`), `no-new-privileges`, limites CPU et mémoire | 1 |
 | R6 | Dépendance vulnérable (chaîne d'approvisionnement) | 2 | 3 | 6 | Versions figées, Dependabot hebdomadaire, alertes de sécurité GitHub, CI avant toute fusion | 3 |
 | R7 | Compte GitHub piraté (code ou modèle modifié) | 1 | 3 | 3 | Double authentification, dépôt privé, PR obligatoire, CD sur tag seulement | 2 |
-| R8 | Vol du poste d'exploitation | 1 | 3 | 3 | Disque chiffré (FileVault), données pseudonymes, secrets non stockés en clair dans le dépôt | 1 |
+| R8 | Vol du poste d'exploitation | 1 | 3 | 3 | Données synthétiques et pseudonymes, secrets hors du dépôt ; en production : disque chiffré (FileVault) | 2 |
 | R9 | Perte de données (panne, erreur) | 2 | 2 | 4 | Volume Docker persistant, sauvegarde quotidienne chiffrée (procédure en section 4) | 2 |
 | R10 | Empoisonnement des étiquettes (décisions erronées utilisées pour réentraîner) | 2 | 2 | 4 | Promotion seulement si meilleur sur des fiches jamais vues, audit d'équité, validation humaine | 2 |
 | R11 | Contournement du modèle par les tricheurs | 3 | 2 | 6 | Surveillance quotidienne de la performance, alerte, réentraînement ; limite documentée (triche humanisée) | 4 |
@@ -55,12 +56,13 @@ chaque revue.
 |---|---|
 | Organisationnel | Politique (section 1), analyse des risques (section 2), registre des traitements et AIPD (`docs/rgpd.md`), gestion des incidents (violation : notification CNIL sous 72 h) |
 | Humain | Accès réservé aux modérateurs et à l'équipe MLOps ; sensibilisation au rôle de la revue humaine |
-| Physique | Poste d'exploitation à disque chiffré, verrouillage de session |
+| Physique | Verrouillage de session ; disque chiffré exigé en production |
 | Technologique | Authentification par clé, double authentification GitHub, base non exposée, conteneurs durcis, validation des entrées, SQL paramétré, CSP, journaux JSON, dépendances figées et surveillées, CI/CD avec permissions minimales, image testée = image déployée, sauvegardes |
 
 **Chiffrement**
 
-- Au repos : disque chiffré du poste (FileVault) ; sauvegardes chiffrées.
+- Au repos : sauvegardes chiffrées ; en production, disque du serveur chiffré. Le poste de
+  démonstration n'est pas chiffré : acceptable car il ne contient que des données synthétiques.
 - En transit : en local, le trafic ne quitte pas la machine ; en production, HTTPS
   obligatoire (proxy inverse) et console accessible uniquement par VPN.
 - Secrets : stockés chiffrés par GitHub (secrets du dépôt), jamais affichés dans les journaux.
@@ -99,4 +101,5 @@ sauvegardes : on ne garde pas de sauvegarde au-delà de 30 jours).
 | Une clé d'API partagée | Comptes individuels via l'authentification unique de l'entreprise, avec double facteur, et rôles (modérateur, DPO, MLOps) |
 | HTTP en local | HTTPS + VPN |
 | Sauvegarde décrite, non automatisée | Sauvegarde planifiée et supervisée |
+| Poste de démonstration non chiffré (données synthétiques uniquement) | Disque chiffré sur tout poste ou serveur qui traite des données réelles |
 | Journaux dans la sortie des conteneurs | Centralisation et alerte (supervision Grafana, bloc 2) |
