@@ -1,19 +1,17 @@
-"""Générateur de données synthétiques pour Sentinel.
+"""Données de Sentinel : génération synthétique, scénarios de démonstration, validation.
 
-Produit une table "une ligne = un joueur sur un match", conforme au contrat de
-données du cahier des charges (section 4).
+Une ligne = un joueur sur un match terminé (contrat de données, cahier des charges section 4).
 
-Principe : on crée d'abord des joueurs (niveau, appareil, tricheur ou non), puis
-on simule leurs statistiques sur plusieurs matchs. Les tricheurs ont des
-statistiques "trop bonnes" ; le paramètre ``cheat_intensity`` règle à quel point.
+Génération : on crée d'abord des joueurs (niveau, appareil, tricheur ou non), puis on simule
+leurs statistiques sur plusieurs matchs. Les tricheurs ont des statistiques "trop bonnes" ;
+le paramètre ``cheat_intensity`` règle à quel point (1.0 = flagrant, 0.4 = "triche humanisée").
 
-- cheat_intensity = 1.0 : triche classique, facile à repérer (données d'entraînement).
-- cheat_intensity = 0.4 : "triche humanisée", l'aimbot rate volontairement des tirs
-  pour ressembler à un humain. C'est le scénario de dérive (drift) de la démo.
+Validation : avant d'entraîner ou de prédire, on vérifie le format des données et on
+s'arrête avec un message clair si quelque chose ne va pas (pas d'échec silencieux).
 
-Utilisation en ligne de commande :
-    python -m src.data.generate --n-matches 50000 --output data/train.csv
-    python -m src.data.generate --cheat-intensity 0.4 --seed 7 --output data/drift.csv
+En ligne de commande :
+    python -m src.data --output data/train.csv
+    python -m src.data --scenario patch --output data/recent.csv
 """
 
 import argparse
@@ -23,16 +21,21 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.config import ALL_COLUMNS, RANDOM_SEED
+from src.config import (
+    ALL_COLUMNS,
+    ALLOWED_CATEGORIES,
+    NULLABLE_COLUMNS,
+    NUMERIC_RANGES,
+    RANDOM_SEED,
+    TARGET,
+)
 
-# Part des joueurs tricheurs (environ 3 %, classe très minoritaire).
-CHEATER_RATE = 0.03
-# Part des joueurs qui utilisent l'option d'accessibilité du jeu.
-ACCESSIBILITY_RATE = 0.04
-# Part des temps de réaction perdus (panne de télémétrie) -> valeurs manquantes.
-MISSING_REACTION_RATE = 0.02
-# Nombre moyen de matchs par joueur dans un jeu de données.
+CHEATER_RATE = 0.03  # environ 3 % de tricheurs : classe très minoritaire
+ACCESSIBILITY_RATE = 0.04  # part des joueurs qui utilisent l'option d'accessibilité du jeu
+MISSING_REACTION_RATE = 0.02  # temps de réaction perdus (panne de télémétrie)
 MATCHES_PER_PLAYER = 6
+
+# --- Génération ---------------------------------------------------------------------------
 
 
 def _new_uuid(rng: np.random.Generator) -> str:
@@ -241,26 +244,103 @@ def generate_dataset(
     return matches[ALL_COLUMNS]
 
 
+# --- Scénarios de démonstration ("matchs récents", après l'entraînement) ------------------
+# Nouveaux joueurs (autre graine), période postérieure (octobre-novembre 2026).
+SCENARIOS = {
+    "normal": {"cheat_intensity": 1.0, "game_patch": False},  # rien n'a changé
+    "patch": {"cheat_intensity": 1.0, "game_patch": True},  # mise à jour du jeu
+    "humanisee": {"cheat_intensity": 0.4, "game_patch": False},  # triche plus discrète
+}
+
+
+def scenario_data(name: str, n_matches: int = 30_000) -> pd.DataFrame:
+    """Crée les fiches "récentes" d'un scénario de démonstration (environ une journée)."""
+    if name not in SCENARIOS:
+        raise ValueError(f"Scénario inconnu : {name}. Choix : {', '.join(SCENARIOS)}")
+    return generate_dataset(n_matches, seed=2026, start_date="2026-10-01", **SCENARIOS[name])
+
+
+# --- Validation ---------------------------------------------------------------------------
+
+
+class DataValidationError(ValueError):
+    """Erreur levée quand les données ne respectent pas le contrat."""
+
+
+def validate_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    """Vérifie qu'un jeu de données respecte le contrat du cahier des charges.
+
+    Toutes les anomalies sont rassemblées puis signalées ensemble, pour pouvoir
+    tout corriger d'un coup.
+
+    Args:
+        df: les données à vérifier.
+
+    Returns:
+        Le même DataFrame, inchangé, si tout est conforme.
+
+    Raises:
+        DataValidationError: si au moins une règle n'est pas respectée.
+    """
+    errors: list[str] = []
+
+    # 1. Toutes les colonnes du contrat sont présentes.
+    missing_columns = [col for col in ALL_COLUMNS if col not in df.columns]
+    if missing_columns:
+        # Sans les bonnes colonnes, les autres vérifications n'ont pas de sens : on s'arrête.
+        raise DataValidationError(f"Colonnes manquantes : {missing_columns}")
+
+    if df.empty:
+        raise DataValidationError("Le jeu de données est vide.")
+
+    # 2. Pas de valeur manquante, sauf dans les colonnes autorisées.
+    for col in ALL_COLUMNS:
+        n_missing = int(df[col].isna().sum())
+        if n_missing and col not in NULLABLE_COLUMNS:
+            errors.append(f"{col} : {n_missing} valeur(s) manquante(s) non autorisée(s)")
+
+    # 3. Les colonnes numériques sont bien numériques et dans des bornes réalistes.
+    for col, (low, high) in NUMERIC_RANGES.items():
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            errors.append(f"{col} : type {df[col].dtype} au lieu d'un type numérique")
+            continue
+        out_of_range = df[col].dropna().pipe(lambda s: (s < low) | (s > high)).sum()
+        if out_of_range:
+            errors.append(f"{col} : {int(out_of_range)} valeur(s) hors de [{low}, {high}]")
+
+    # 4. Les colonnes catégorielles ne contiennent que des valeurs connues.
+    for col, allowed in ALLOWED_CATEGORIES.items():
+        unknown = set(df[col].dropna().unique()) - allowed
+        if unknown:
+            errors.append(f"{col} : valeur(s) inconnue(s) {sorted(unknown)}")
+
+    # 5. La cible ne contient que 0 ou 1.
+    if not set(df[TARGET].dropna().unique()) <= {0, 1}:
+        errors.append(f"{TARGET} : doit contenir uniquement 0 ou 1")
+
+    # 6. Une même ligne (joueur, match) n'apparaît qu'une fois.
+    n_duplicates = int(df.duplicated(subset=["player_id", "match_id"]).sum())
+    if n_duplicates:
+        errors.append(f"{n_duplicates} doublon(s) (player_id, match_id)")
+
+    if errors:
+        raise DataValidationError("Données non conformes :\n- " + "\n- ".join(errors))
+    return df
+
+
 def main() -> None:
-    """Point d'entrée en ligne de commande : génère un fichier CSV."""
     parser = argparse.ArgumentParser(description="Génère des données synthétiques Sentinel.")
+    parser.add_argument("--scenario", choices=list(SCENARIOS), help="fiches récentes de démo")
     parser.add_argument("--n-matches", type=int, default=50_000)
-    parser.add_argument("--seed", type=int, default=RANDOM_SEED)
-    parser.add_argument("--cheat-intensity", type=float, default=1.0)
-    parser.add_argument("--start-date", default="2026-08-01")
-    parser.add_argument("--game-patch", action="store_true", help="simule une mise à jour du jeu")
     parser.add_argument("--output", type=Path, default=Path("data/train.csv"))
     args = parser.parse_args()
-
-    df = generate_dataset(
-        args.n_matches, args.seed, args.cheat_intensity, args.start_date, args.game_patch
-    )
+    if args.scenario:
+        df = scenario_data(args.scenario)
+    else:
+        df = generate_dataset(args.n_matches)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.output, index=False)
-    print(
-        f"{len(df)} lignes écrites dans {args.output} "
-        f"(tricheurs : {df['is_cheater'].mean():.1%}, intensité de triche : {args.cheat_intensity})"
-    )
+    print(f"{len(df)} lignes écrites dans {args.output} ({df[TARGET].mean():.1%} de tricheurs)")
 
 
 if __name__ == "__main__":

@@ -11,24 +11,25 @@ numérotation [SemVer](https://semver.org/lang/fr/) : MAJEUR.MINEUR.CORRECTIF.
 
 ### Ajouté
 
-- Surveillance du modèle : dérive des données (Evidently), dérive des prédictions et
-  performance sur les fiches étiquetées, avec statut ok/alerte et rapport HTML.
-- Workflow quotidien de surveillance qui ouvre un ticket GitHub en cas d'alerte.
-- Générateur : option `--game-patch` pour simuler une mise à jour du jeu.
-- CI : les tests en échec apparaissent en annotations sur la Pull Request.
-- Réentraînement automatique champion / challenger, déclenché par une alerte de
-  surveillance : fenêtre glissante, seuil recalé, règles de promotion (gain confirmé par
-  bootstrap, faux positifs, équité, pas d'oubli), proposition du modèle en Pull Request.
-- Recette des données d'entraînement de chaque modèle (reconstruction vérifiée par empreinte).
-- Retour arrière : `python -m retrain.retrain --rollback <version>`.
+- Surveillance quotidienne du modèle : dérive des données (Evidently) et performance sur
+  les fiches étiquetées, statut ok/alerte, rapport HTML, ticket GitHub en cas d'alerte.
+- Scénarios de démonstration : normal, mise à jour du jeu (`patch`), triche humanisée.
+- Réentraînement sur les fiches récentes avec 3 règles de promotion (meilleur, au plus
+  1,5 % d'honnêtes signalés, équitable) et retour arrière
+  (`python -m monitoring.retrain --rollback <version>`).
+- Échantillon de référence enregistré avec chaque modèle (sans identifiant ni variable d'audit).
 - Documentation RGPD (registre, AIPD, procédure des droits) et sécurité (politique,
-  analyse des risques, principes ISO 27001).
+  analyse des risques, principes ISO 27001) ; guide d'explication du projet.
 - Purge automatique quotidienne (service `purge`), étendue aux décisions des modérateurs.
 - Exercice des droits journalisé avec l'identifiant pseudonyme (preuve de traitement).
 - Conteneurs sans privilèges Linux (`cap_drop`, `no-new-privileges`).
 
 ### Modifié
 
+- **Simplification du code** pour qu'il soit explicable de bout en bout : `src/` en 3
+  fichiers, une seule route `/predict`, console en 2 onglets, réentraînement à 3 règles,
+  surveillance qui ouvre un ticket, CD sans déploiement automatique. Résultats du modèle
+  inchangés. Voir `docs/guide_explication.md`.
 - Actions GitHub en v7 ; politique Dependabot (correctifs seulement pour les
   bibliothèques Python, Python 3.11 figé dans l'image).
 

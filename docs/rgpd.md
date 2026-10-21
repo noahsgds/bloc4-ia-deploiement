@@ -63,8 +63,8 @@ et les droits, en langage clair adapté aux joueurs de 16 ans.
   les statistiques du match : il peut juger le dossier, pas seulement suivre un chiffre.
 - Le score est un **score de suspicion pour trier**, pas une probabilité ni une preuve.
 - Le joueur sanctionné peut **contester** ; un autre modérateur réexamine le dossier.
-- Si le modèle réentraîné change, la mise en production est validée par un humain
-  (Pull Request), jamais automatique.
+- Le réentraînement est lancé par une personne après une alerte, et un nouveau modèle
+  n'arrive en production qu'à la publication d'une version : jamais automatiquement.
 
 ## 5. Droits des personnes (loi Informatique et Libertés, articles 15 à 21 du RGPD)
 

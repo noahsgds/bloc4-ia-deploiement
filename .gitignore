@@ -14,7 +14,6 @@ __pycache__/
 
 # Rapports générés automatiquement
 /monitoring/reports/
-/retrain/reports/
 
 # Fichiers système macOS
 .DS_Store

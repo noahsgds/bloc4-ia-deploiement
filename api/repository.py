@@ -86,9 +86,6 @@ class InMemoryRepository:
         self.decisions = [d for d in self.decisions if str(d["player_id"]) != player_id]
         return n_pred - len(self.predictions), n_dec - len(self.decisions)
 
-    def recent_predictions(self, limit: int) -> list[dict]:
-        return sorted(self.predictions, key=lambda p: p["created_at"], reverse=True)[:limit]
-
     def purge_older_than(self, days: int) -> tuple[int, int]:
         limit = _now() - timedelta(days=days)
         n_pred, n_dec = len(self.predictions), len(self.decisions)
@@ -182,15 +179,6 @@ class PostgresRepository:
                 "DELETE FROM decisions WHERE player_id = %s", (player_id,)
             ).rowcount
         return n_pred, n_dec
-
-    def recent_predictions(self, limit: int) -> list[dict]:
-        with self._connect() as conn:
-            return conn.execute(
-                """SELECT player_id, match_id, suspicion_score, flagged, model_version,
-                          features, created_at
-                   FROM predictions ORDER BY created_at DESC LIMIT %s""",
-                (limit,),
-            ).fetchall()
 
     def purge_older_than(self, days: int) -> tuple[int, int]:
         """Supprime prédictions et décisions plus anciennes que la durée de conservation.
