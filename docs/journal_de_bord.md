@@ -20,7 +20,7 @@
 | 8 | CI/CD GitHub Actions | ✅ | v1.0.0 publiée le 20/10 (image ghcr.io + Release) |
 | 9 | Monitoring de la dérive (Evidently) | ✅ | 3 scénarios testés dans la CI |
 | 10 | Réentraînement automatisé | ✅ | Scénarios patch et triche humanisée testés ; suite complète verte avec v1 et avec v2 en production |
-| 11 | Documentation finale (architecture, fiche modèle, traçabilité) | ⏳ | — |
+| 11 | Documentation finale (architecture, fiche modèle, traçabilité) | ✅ | 3 documents ; dossier `/retrain` rétabli (structure de l'énoncé) |
 | 12 | Slides et vidéo | ⏳ | — |
 | 13 | Audit final contre la grille et entraînement au jury | ⏳ | — |
 
@@ -319,7 +319,7 @@ d'avant ; le [guide d'explication](guide_explication.md) décrit la version actu
 | 3.5 Reproductibilité | 🟢 | Recette des données emboîtée + empreinte, graine, commit, version parente, rapport de promotion |
 | 4.1 à 4.6 CI/CD | 🟢 | `ci.yml`, `cd.yml`, Dependabot, CHANGELOG. Déploiement automatique : choix du runner à faire |
 | 5.1 et 5.2 RGPD / Informatique et Libertés | 🟢 | `docs/rgpd.md` : registre, AIPD, procédure des droits ; API d'accès et d'effacement ; purge quotidienne |
-| 5.3 Sécurité | 🟡 | Mesures techniques et documentées ; **2FA GitHub et FileVault à confirmer par Noah** |
+| 5.3 Sécurité | 🟡 | Mesures techniques et documentées ; FileVault non activé sur le poste de démo (données synthétiques), présenté comme exigence de production |
 | 5.4 ISO 27001 | 🟢 | `docs/securite.md` : politique, analyse des risques, mesures annexe A, revues ; certification non visée (justifié) |
 | 5.5 IA éthique | 🟢 | SHAP, audit d'équité, revue humaine |
 | 6.1 à 6.8 Qualité du code | 🟢 | Structure, docstrings, ruff, tests, commits clairs |
@@ -338,4 +338,4 @@ d'avant ; le [guide d'explication](guide_explication.md) décrit la version actu
 
 ## Prochaine étape
 
-**Étape 11 : documentation finale** (schéma d'architecture, fiche modèle, matrice de traçabilité exigences → code → tests), puis passage au bloc 3.
+**Bloc 3 : pipeline de données** qui alimente Sentinel (Airflow, contrôles qualité, traçabilité), en mode simple dès le départ. Le bloc 4 sera repris pour les slides, la vidéo et l'entraînement jury.

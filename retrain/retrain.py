@@ -12,9 +12,9 @@ Pourquoi seulement les fiches récentes ? Après une mise à jour du jeu, les an
 statistiques décrivent un jeu qui n'existe plus.
 
 Utilisation :
-    python -m monitoring.retrain --scenario patch
-    python -m monitoring.retrain --current fiches_etiquetees.csv
-    python -m monitoring.retrain --rollback v1        # revenir à une version précédente
+    python -m retrain.retrain --scenario patch
+    python -m retrain.retrain --current fiches_etiquetees.csv
+    python -m retrain.retrain --rollback v1        # revenir à une version précédente
 """
 
 import argparse

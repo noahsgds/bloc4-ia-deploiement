@@ -10,7 +10,7 @@ import shutil
 import pytest
 
 from monitoring.monitor import decide, monitor
-from monitoring.retrain import retrain
+from retrain.retrain import retrain
 from src.config import CATEGORICAL_FEATURES, MODELS_DIR, NUMERIC_FEATURES
 from src.data import scenario_data
 from src.model import load_champion
