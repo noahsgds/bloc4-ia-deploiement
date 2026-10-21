@@ -9,7 +9,7 @@ pandas==3.0.6
 psycopg==3.3.6
 psycopg-binary==3.3.6
 pytest==9.1.1
-ruff==0.17.0
+ruff==0.17.1
 scikit-learn==1.9.1
 shap==0.51.0
 uvicorn==0.54.0
