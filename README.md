@@ -286,6 +286,17 @@ déploient via la CD. Pour que GitHub Actions puisse ouvrir cette Pull Request, 
 *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests* ;
 sinon la branche est poussée et le lien pour ouvrir la PR est indiqué dans l'exécution.
 
+## Données personnelles et sécurité
+
+| Document | Contenu |
+|---|---|
+| [`docs/rgpd.md`](docs/rgpd.md) | Registre des traitements, base légale (pourquoi pas le consentement), article 22, procédure d'exercice des droits, analyse d'impact (AIPD), mineurs, violation de données, IA éthique |
+| [`docs/securite.md`](docs/securite.md) | Politique de sécurité, analyse de 12 risques, mesures rangées selon ISO 27001, rotation de clé, sauvegarde chiffrée, revues régulières, limites |
+
+En pratique : identifiants pseudonymes, 13 variables seulement, variables d'audit hors du
+modèle et de l'API, droits d'accès et d'effacement par l'API, purge quotidienne des données
+de plus de 12 mois (service `purge`), conteneurs sans privilèges, base non exposée.
+
 ## Qualité du code
 
 - Tests automatisés : `pytest`

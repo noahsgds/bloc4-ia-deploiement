@@ -259,7 +259,7 @@ def create_app(repository=None, models_dir=MODELS_DIR) -> FastAPI:
     def player_data(player_id: UUID, request: Request):
         """Droit d'accès : toutes les prédictions et décisions concernant un joueur."""
         data = request.app.state.repository.get_player_data(str(player_id))
-        log(logging.INFO, "droit d'accès exercé")
+        log(logging.INFO, "droit d'accès exercé", player_id=str(player_id))
         return {"player_id": player_id, **data}
 
     @app.delete(
@@ -276,13 +276,22 @@ def create_app(repository=None, models_dir=MODELS_DIR) -> FastAPI:
         """
         repository = request.app.state.repository
         if repository.has_confirmed_cheat(str(player_id)):
+            log(logging.INFO, "effacement différé (contestation)", player_id=str(player_id))
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 "Effacement différé : une sanction pour triche est en cours, les éléments "
                 "sont conservés jusqu'à la fin de la procédure de contestation.",
             )
         n_pred, n_dec = repository.delete_player_data(str(player_id))
-        log(logging.INFO, "droit à l'effacement exercé", deleted_predictions=n_pred)
+        # L'identifiant pseudonyme est journalisé pour prouver que la demande a été traitée
+        # (principe de responsabilité, article 5.2 du RGPD).
+        log(
+            logging.INFO,
+            "droit à l'effacement exercé",
+            player_id=str(player_id),
+            deleted_predictions=n_pred,
+            deleted_decisions=n_dec,
+        )
         return {"player_id": player_id, "deleted_predictions": n_pred, "deleted_decisions": n_dec}
 
     # --- Console de modération (fichiers statiques) ------------------------------------

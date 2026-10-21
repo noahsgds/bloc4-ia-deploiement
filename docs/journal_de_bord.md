@@ -16,7 +16,7 @@
 | 5 | Robustesse et montée en charge | ✅ | 22 tests |
 | 6 | API FastAPI, Postgres, droits RGPD, Docker | ✅ | Parcours de 6 tests validé sur le Mac |
 | 6b | Console de modération | ✅ | Toutes les pages validées sur le Mac |
-| 7 | Documentation RGPD détaillée | ⏳ | — |
+| 7 | Documentation RGPD et sécurité | ✅ | Purge et droits testés ; Docker sur le Mac à revalider |
 | 8 | CI/CD GitHub Actions | ✅ | v1.0.0 publiée le 20/10 (image ghcr.io + Release) |
 | 9 | Monitoring de la dérive (Evidently) | ✅ | 3 scénarios testés dans la CI |
 | 10 | Réentraînement automatisé | ✅ | Scénarios patch et triche humanisée testés ; suite complète verte avec v1 et avec v2 en production |
@@ -24,7 +24,7 @@
 | 12 | Slides et vidéo | ⏳ | — |
 | 13 | Audit final contre la grille et entraînement au jury | ⏳ | — |
 
-Total actuel : **137 tests automatisés**, `ruff` sans erreur, 8 Pull Requests fusionnées.
+Total actuel : **139 tests automatisés**, `ruff` sans erreur, 10 Pull Requests fusionnées.
 
 ---
 
@@ -252,9 +252,26 @@ Total actuel : **137 tests automatisés**, `ruff` sans erreur, 8 Pull Requests f
 - **Limite :** la promotion repose sur la vérité connue, donc sur les enquêtes des modérateurs (voir l'échantillon de contrôle aléatoire, étape 9).
 - **Validation :** 19 tests, suite complète verte avec v1 puis avec v2 en production. **Réglage à faire par Noah** : autoriser GitHub Actions à créer des Pull Requests.
 
+## Étape 7 — Données personnelles et sécurité
+
+**Fichiers :** `docs/rgpd.md`, `docs/securite.md`, `api/repository.py`, `api/purge.py`, `api/main.py`, `docker-compose.yml`
+
+- **Documents :** registre des traitements (art. 30), base légale, information, article 22, procédure des droits avec délais et exceptions, AIPD, mineurs, violation de données ; politique de sécurité, 12 risques cotés, mesures selon l'annexe A d'ISO 27001, procédures (rotation de clé, sauvegarde chiffrée), calendrier de revues.
+- **Corrections dans le code** (écarts trouvés en rédigeant) :
+  1. Les décisions des modérateurs n'étaient jamais purgées : purge à 12 mois étendue aux décisions (test ajouté).
+  2. La purge n'était lancée par rien : service `purge` quotidien dans Docker Compose.
+  3. L'exercice des droits était journalisé sans identifiant : impossible de prouver le traitement d'une demande. L'UUID pseudonyme est maintenant journalisé (art. 5.2).
+  4. Conteneurs durcis : `cap_drop: ALL`, `no-new-privileges`.
+- **Incohérences corrigées dans le cahier des charges :** route `/players/{id}/data` (et non `/predictions`), « score de suspicion » et non « probabilité », durées de conservation précisées.
+- **À dire au jury :**
+  - pourquoi pas le consentement (ni libre ni retirable pour un anti-triche) ;
+  - pourquoi une AIPD (scoring + mineurs + grande échelle + effet important) ;
+  - pourquoi pas de certification ISO 27001 (démarche appliquée, pas d'organisation à certifier).
+- **Limite assumée :** une clé d'API partagée ; cible = comptes individuels avec double facteur et rôles.
+
 ---
 
-## Couverture de la grille (état au 16/10, après l'étape 10)
+## Couverture de la grille (état au 21/10, après l'étape 7)
 
 | Critère | État | Où |
 |---|---|---|
@@ -274,9 +291,9 @@ Total actuel : **137 tests automatisés**, `ruff` sans erreur, 8 Pull Requests f
 | 3.3 Changements dans les données | 🟢 | Fenêtre glissante, seuil recalé, doublons, format modifié et fiches sans étiquette refusés |
 | 3.5 Reproductibilité | 🟢 | Recette des données emboîtée + empreinte, graine, commit, version parente, rapport de promotion |
 | 4.1 à 4.6 CI/CD | 🟢 | `ci.yml`, `cd.yml`, Dependabot, CHANGELOG. Déploiement automatique : choix du runner à faire |
-| 5.1 et 5.2 RGPD / Informatique et Libertés | 🟡 | Droits d'accès et d'effacement, purge, minimisation ; **registre à rédiger (étape 7)** |
-| 5.3 Sécurité | 🟡 | Mesures techniques faites ; **2FA GitHub et FileVault à confirmer** |
-| 5.4 ISO 27001 | 🟡 | Principes à documenter (étape 7, lien avec le bloc 1) |
+| 5.1 et 5.2 RGPD / Informatique et Libertés | 🟢 | `docs/rgpd.md` : registre, AIPD, procédure des droits ; API d'accès et d'effacement ; purge quotidienne |
+| 5.3 Sécurité | 🟡 | Mesures techniques et documentées ; **2FA GitHub et FileVault à confirmer par Noah** |
+| 5.4 ISO 27001 | 🟢 | `docs/securite.md` : politique, analyse des risques, mesures annexe A, revues ; certification non visée (justifié) |
 | 5.5 IA éthique | 🟢 | SHAP, audit d'équité, revue humaine |
 | 6.1 à 6.8 Qualité du code | 🟢 | Structure, docstrings, ruff, tests, commits clairs |
 | 7.1 à 7.7 Présentation | 🔴 | Étapes 12 et 13 |
@@ -294,4 +311,4 @@ Total actuel : **137 tests automatisés**, `ruff` sans erreur, 8 Pull Requests f
 
 ## Prochaine étape
 
-**Étape 7 : documentation RGPD** (registre des traitements, analyse d'impact, principes ISO 27001), puis étape 11 (architecture, fiche modèle, matrice de traçabilité).
+**Étape 11 : documentation finale** (architecture, fiche modèle, matrice de traçabilité exigences → code → tests, audit d'accessibilité).

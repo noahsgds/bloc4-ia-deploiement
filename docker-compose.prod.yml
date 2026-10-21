@@ -10,3 +10,6 @@ services:
     image: ghcr.io/noahsgds/sentinel-api:${SENTINEL_VERSION:?version à déployer manquante}
     build: !reset null # ne jamais reconstruire : on déploie exactement l'image testée par la CI
     pull_policy: always
+
+  purge:
+    image: ghcr.io/noahsgds/sentinel-api:${SENTINEL_VERSION:?version à déployer manquante}

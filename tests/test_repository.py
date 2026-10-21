@@ -115,5 +115,30 @@ def test_purge_des_predictions_anciennes(repository):
                 "WHERE id = (SELECT min(id) FROM predictions)",
                 (old,),
             )
-    assert repository.purge_older_than(days=365) == 1
+    assert repository.purge_older_than(days=365) == (1, 0)
     assert len(repository.recent_predictions(limit=10)) == 1
+
+
+def test_purge_des_decisions_anciennes(repository):
+    player = str(uuid.uuid4())
+    for decision in ["innocente", "triche_confirmee"]:
+        repository.add_decision(
+            {
+                "player_id": player,
+                "match_id": str(uuid.uuid4()),
+                "decision": decision,
+                "moderator": "mod-01",
+                "comment": "",
+            }
+        )
+    old = datetime.now(timezone.utc) - timedelta(days=400)
+    if isinstance(repository, InMemoryRepository):
+        repository.decisions[0]["created_at"] = old
+    else:
+        with psycopg.connect(TEST_DATABASE_URL) as conn:
+            conn.execute(
+                "UPDATE decisions SET created_at = %s WHERE id = (SELECT min(id) FROM decisions)",
+                (old,),
+            )
+    assert repository.purge_older_than(days=365) == (0, 1)
+    assert len(repository.get_player_data(player)["decisions"]) == 1

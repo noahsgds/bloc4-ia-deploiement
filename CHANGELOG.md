@@ -21,6 +21,16 @@ numérotation [SemVer](https://semver.org/lang/fr/) : MAJEUR.MINEUR.CORRECTIF.
   bootstrap, faux positifs, équité, pas d'oubli), proposition du modèle en Pull Request.
 - Recette des données d'entraînement de chaque modèle (reconstruction vérifiée par empreinte).
 - Retour arrière : `python -m retrain.retrain --rollback <version>`.
+- Documentation RGPD (registre, AIPD, procédure des droits) et sécurité (politique,
+  analyse des risques, principes ISO 27001).
+- Purge automatique quotidienne (service `purge`), étendue aux décisions des modérateurs.
+- Exercice des droits journalisé avec l'identifiant pseudonyme (preuve de traitement).
+- Conteneurs sans privilèges Linux (`cap_drop`, `no-new-privileges`).
+
+### Modifié
+
+- Actions GitHub en v7 ; politique Dependabot (correctifs seulement pour les
+  bibliothèques Python, Python 3.11 figé dans l'image).
 
 ## [1.0.0] - 2026-10-16
 
