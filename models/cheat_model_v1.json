@@ -1,8 +1,9 @@
 {
   "version": "v1",
-  "created_at": "2026-10-15T08:29:02+00:00",
-  "model_name": "gradient_boosting",
-  "threshold": 0.6922178881109246,
+  "created_at": "2026-10-21T13:51:07+00:00",
+  "seed": 42,
+  "git_commit": "8caa64b",
+  "sklearn_version": "1.9.1",
   "features": [
     "accuracy",
     "headshot_rate",
@@ -18,41 +19,11 @@
     "input_device",
     "platform"
   ],
-  "seed": 42,
-  "git_commit": "f839bff",
-  "sklearn_version": "1.9.1",
-  "data": {
-    "fingerprint": "7918e99aef9199a7",
-    "n_rows": 50000,
-    "n_train": 29816,
-    "n_validation": 10187,
-    "n_test": 9997,
-    "period": [
-      "2026-08-01",
-      "2026-09-29"
-    ]
-  },
-  "validation_metrics": {
-    "regression_logistique": {
-      "roc_auc": 0.8793,
-      "pr_auc": 0.5824,
-      "precision_top": 0.9216,
-      "recall": 0.5445,
-      "false_positive_rate": 0.0093,
-      "threshold": 0.8259,
-      "n_samples": 10187,
-      "cheater_rate": 0.0276
-    },
-    "gradient_boosting": {
-      "roc_auc": 0.88,
-      "pr_auc": 0.5905,
-      "precision_top": 0.9706,
-      "recall": 0.5516,
-      "false_positive_rate": 0.0098,
-      "threshold": 0.6922,
-      "n_samples": 10187,
-      "cheater_rate": 0.0276
-    }
+  "model_name": "gradient_boosting",
+  "threshold": 0.6922178881109246,
+  "validation_pr_auc": {
+    "regression_logistique": 0.5824,
+    "gradient_boosting": 0.5905
   },
   "test_metrics": {
     "roc_auc": 0.8702,
@@ -60,9 +31,7 @@
     "precision_top": 0.94,
     "recall": 0.568,
     "false_positive_rate": 0.013,
-    "threshold": 0.6922,
-    "n_samples": 9997,
-    "cheater_rate": 0.0294
+    "n_samples": 9997
   },
   "baseline_test_metrics": {
     "roc_auc": 0.6829,
@@ -70,9 +39,43 @@
     "precision_top": 0.3,
     "recall": 0.102,
     "false_positive_rate": 0.006,
-    "threshold": 4.0,
-    "n_samples": 9997,
-    "cheater_rate": 0.0294
+    "n_samples": 9997
+  },
+  "fairness": {
+    "input_device": {
+      "fpr_by_group": {
+        "clavier_souris": 0.0153,
+        "manette": 0.0085
+      },
+      "gap": 0.0068,
+      "passed": true
+    },
+    "platform": {
+      "fpr_by_group": {
+        "console": 0.009,
+        "pc": 0.0146
+      },
+      "gap": 0.0056,
+      "passed": true
+    },
+    "accessibility_mode": {
+      "fpr_by_group": {
+        "False": 0.0131,
+        "True": 0.0099
+      },
+      "gap": 0.0032,
+      "passed": true
+    },
+    "age_band": {
+      "fpr_by_group": {
+        "16-17": 0.0077,
+        "18-24": 0.0142,
+        "25-34": 0.0152,
+        "35+": 0.008
+      },
+      "gap": 0.0075,
+      "passed": true
+    }
   },
   "acceptance": {
     "passed": true,
@@ -83,102 +86,6 @@
       "recall": true,
       "false_positive_rate": true,
       "fairness": true
-    }
-  },
-  "fairness": {
-    "input_device": {
-      "rates": {
-        "clavier_souris": {
-          "n_honest": 6423,
-          "n_cheaters": 175,
-          "false_positive_rate": 0.0153,
-          "recall": 0.5486,
-          "reliable": true
-        },
-        "manette": {
-          "n_honest": 3280,
-          "n_cheaters": 119,
-          "false_positive_rate": 0.0085,
-          "recall": 0.5966,
-          "reliable": true
-        }
-      },
-      "fpr_gap": 0.0068,
-      "passed": true
-    },
-    "platform": {
-      "rates": {
-        "console": {
-          "n_honest": 2781,
-          "n_cheaters": 99,
-          "false_positive_rate": 0.009,
-          "recall": 0.5758,
-          "reliable": true
-        },
-        "pc": {
-          "n_honest": 6922,
-          "n_cheaters": 195,
-          "false_positive_rate": 0.0146,
-          "recall": 0.5641,
-          "reliable": true
-        }
-      },
-      "fpr_gap": 0.0056,
-      "passed": true
-    },
-    "accessibility_mode": {
-      "rates": {
-        "False": {
-          "n_honest": 9299,
-          "n_cheaters": 280,
-          "false_positive_rate": 0.0131,
-          "recall": 0.5714,
-          "reliable": true
-        },
-        "True": {
-          "n_honest": 404,
-          "n_cheaters": 14,
-          "false_positive_rate": 0.0099,
-          "recall": 0.5,
-          "reliable": true
-        }
-      },
-      "fpr_gap": 0.0032,
-      "passed": true
-    },
-    "age_band": {
-      "rates": {
-        "16-17": {
-          "n_honest": 778,
-          "n_cheaters": 46,
-          "false_positive_rate": 0.0077,
-          "recall": 0.5,
-          "reliable": true
-        },
-        "18-24": {
-          "n_honest": 4647,
-          "n_cheaters": 153,
-          "false_positive_rate": 0.0142,
-          "recall": 0.5686,
-          "reliable": true
-        },
-        "25-34": {
-          "n_honest": 2769,
-          "n_cheaters": 67,
-          "false_positive_rate": 0.0152,
-          "recall": 0.6567,
-          "reliable": true
-        },
-        "35+": {
-          "n_honest": 1509,
-          "n_cheaters": 28,
-          "false_positive_rate": 0.008,
-          "recall": 0.4643,
-          "reliable": true
-        }
-      },
-      "fpr_gap": 0.0075,
-      "passed": true
     }
   },
   "explain_info": {
@@ -304,6 +211,14 @@
       0.345452,
       0.300174,
       0.699826
+    ]
+  },
+  "data": {
+    "fingerprint": "7918e99aef9199a7",
+    "n_rows": 50000,
+    "period": [
+      "2026-08-01",
+      "2026-09-29"
     ]
   }
 }

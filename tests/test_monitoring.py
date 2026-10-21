@@ -1,130 +1,85 @@
-"""Tests de la surveillance du modèle (étape 9).
+"""Tests de la surveillance et du réentraînement.
 
-- Les règles de décision (seuils d'alerte) sont testées sans Evidently : rapides.
-- Les trois scénarios de bout en bout utilisent Evidently ; ils sont ignorés si la
-  bibliothèque n'est pas installée et s'exécutent dans la CI GitHub.
+Les scénarios avec Evidently sont ignorés si la bibliothèque manque en local, mais sont
+obligatoires dans la CI GitHub (variable CI définie).
 """
 
-import json
 import os
+import shutil
 
 import pytest
 
-from monitoring.drift_report import (
-    data_drift_status,
-    overall_status,
-    performance_status,
-    scenario_data,
-)
-from src.config import CATEGORICAL_FEATURES, NUMERIC_FEATURES
+from monitoring.monitor import decide, monitor
+from monitoring.retrain import retrain
+from src.config import CATEGORICAL_FEATURES, MODELS_DIR, NUMERIC_FEATURES
+from src.data import scenario_data
+from src.model import load_champion
 
-REFERENCE = {"pr_auc": 0.59, "false_positive_rate": 0.013, "recall": 0.57}
-FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+COLUMNS = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+REFERENCE = {"pr_auc": 0.59, "false_positive_rate": 0.013}
 
 
-def current(pr_auc=0.58, fpr=0.01):
-    return {"pr_auc": pr_auc, "false_positive_rate": fpr, "recall": 0.55}
-
-
-# --- Dérive des données -----------------------------------------------------------------
-
-
-def test_aucune_derive_si_toutes_les_distances_sont_faibles():
-    status = data_drift_status({c: 0.02 for c in FEATURES})
-    assert status["drifted_columns"] == []
-    assert status["alert"] is False
-
-
-def test_une_seule_variable_qui_derive_ne_declenche_pas_d_alerte():
-    scores = {c: 0.02 for c in FEATURES} | {"accuracy": 0.5}
-    status = data_drift_status(scores)
-    assert status["drifted_columns"] == ["accuracy"]
-    assert status["alert"] is False  # 1 variable sur 13 : en dessous de 25 %
+def test_pas_d_alerte_si_rien_ne_change():
+    result = decide(
+        {c: 0.02 for c in COLUMNS}, {"pr_auc": 0.58, "false_positive_rate": 0.01}, REFERENCE
+    )
+    assert result["status"] == "ok"
 
 
 def test_alerte_si_un_quart_des_variables_derive():
-    drifting = ["accuracy", "headshot_rate", "avg_reaction_ms", "kills_per_min"]
-    scores = {c: 0.02 for c in FEATURES} | {c: 0.3 for c in drifting}
-    status = data_drift_status(scores)
-    assert status["drifted_columns"] == sorted(drifting)
-    assert status["alert"] is True
+    distances = {c: 0.02 for c in COLUMNS} | {c: 0.3 for c in COLUMNS[:4]}
+    assert decide(distances, None, REFERENCE)["status"] == "alerte"
 
 
-# --- Dérive de performance --------------------------------------------------------------
+def test_alerte_si_la_performance_baisse_ou_les_faux_positifs_montent():
+    calm = {c: 0.02 for c in COLUMNS}
+    assert (
+        decide(calm, {"pr_auc": 0.15, "false_positive_rate": 0.01}, REFERENCE)["status"] == "alerte"
+    )
+    assert (
+        decide(calm, {"pr_auc": 0.58, "false_positive_rate": 0.05}, REFERENCE)["status"] == "alerte"
+    )
 
 
-def test_performance_stable_pas_d_alerte():
-    assert performance_status(current(), REFERENCE)["alert"] is False
+@pytest.fixture
+def models_v1(tmp_path):
+    """Copie du modèle v1 : point de départ fixe, même si une v2 a été promue depuis."""
+    target = tmp_path / "models"
+    target.mkdir()
+    for f in MODELS_DIR.glob("*_v1.*"):
+        shutil.copy(f, target)
+    (target / "champion.json").write_text('{"version": "v1"}')
+    return target
 
 
-def test_alerte_si_la_pr_auc_s_effondre():
-    status = performance_status(current(pr_auc=0.15), REFERENCE)
-    assert status["alert"] is True
-    assert "PR-AUC" in status["reasons"][0]
+def test_apres_un_patch_le_nouveau_modele_est_promu(models_v1):
+    report = retrain(scenario_data("patch"), models_v1)
+    assert report["champion"]["false_positive_rate"] > 0.03  # l'ancien accuse des innocents
+    assert report["promote"] and report["new_version"] == "v2"
+    _, meta = load_champion(models_v1)
+    assert meta["version"] == "v2" and meta["parent_version"] == "v1"
 
 
-def test_alerte_si_trop_de_joueurs_honnetes_sont_signales():
-    status = performance_status(current(fpr=0.05), REFERENCE)
-    assert status["alert"] is True
-    assert "honnêtes" in status["reasons"][0]
+def test_sans_changement_on_garde_le_modele_actuel(models_v1):
+    report = retrain(scenario_data("normal"), models_v1)
+    assert not report["promote"]
+    assert load_champion(models_v1)[1]["version"] == "v1"
 
 
-def test_statut_global_regroupe_les_raisons():
-    drift = data_drift_status({c: 0.3 for c in FEATURES})
-    perf = performance_status(current(pr_auc=0.1), REFERENCE)
-    status = overall_status(drift, perf)
-    assert status["status"] == "alerte"
-    assert len(status["reasons"]) == 2
-    assert overall_status(data_drift_status({c: 0.0 for c in FEATURES}), None) == {
-        "status": "ok",
-        "reasons": [],
-    }
-
-
-def test_scenario_inconnu_refuse():
-    with pytest.raises(ValueError):
-        scenario_data("inexistant")
-
-
-# --- Scénarios de bout en bout (Evidently) ----------------------------------------------
-
-
-@pytest.fixture(scope="module")
-def run_scenario(tmp_path_factory):
+@pytest.fixture
+def evidently():
     if os.getenv("CI"):
-        import evidently  # noqa: F401  (dans la CI GitHub, ces tests ne doivent jamais être ignorés)
+        import evidently  # noqa: F401  (obligatoire dans la CI)
     else:
         pytest.importorskip("evidently")
-    from monitoring.drift_report import build_report
-
-    reports_dir = tmp_path_factory.mktemp("rapports")
-
-    def _run(name):
-        return build_report(scenario_data(name), name, reports_dir=reports_dir), reports_dir
-
-    return _run
 
 
-def test_scenario_normal_sans_alerte(run_scenario):
-    summary, reports_dir = run_scenario("normal")
-    assert summary["status"] == "ok", summary["reasons"]
-    assert (reports_dir / summary["html_report"]).exists()
-    saved = json.loads((reports_dir / "dernier_resume.json").read_text())
-    assert saved["status"] == "ok"
-
-
-def test_scenario_patch_derive_des_donnees_et_faux_positifs(run_scenario):
-    summary, _ = run_scenario("patch")
-    assert summary["status"] == "alerte"
-    assert summary["data_drift"]["alert"] is True
-    assert "accuracy" in summary["data_drift"]["drifted_columns"]
-    assert summary["performance"]["current"]["false_positive_rate"] > 0.02
-
-
-def test_scenario_triche_humanisee_invisible_sans_verite_terrain(run_scenario):
-    """Le cas qui justifie la surveillance de performance : les données ne bougent pas,
-    mais le modèle ne voit plus les tricheurs."""
-    summary, _ = run_scenario("humanisee")
-    assert summary["data_drift"]["alert"] is False
-    assert summary["performance"]["alert"] is True
-    assert summary["status"] == "alerte"
+@pytest.mark.parametrize(
+    "scenario, status, drift",
+    [("normal", "ok", False), ("patch", "alerte", True), ("humanisee", "alerte", False)],
+)
+def test_scenarios_de_surveillance(evidently, models_v1, tmp_path, scenario, status, drift):
+    summary = monitor(scenario_data(scenario), scenario, models_v1, tmp_path)
+    assert summary["status"] == status, summary["reasons"]
+    assert (len(summary["drifted"]) >= 4) == drift  # la triche humanisée ne se voit pas
+    assert (tmp_path / f"derive_{scenario}.html").exists()

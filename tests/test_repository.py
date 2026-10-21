@@ -90,7 +90,8 @@ def test_triche_confirmee_detectee(repository):
 def test_injection_sql_sans_effet(repository):
     """Une valeur malveillante est traitée comme du texte, jamais exécutée."""
     malicious = "x'; DROP TABLE predictions; --"
-    repository.log_predictions([prediction(str(uuid.uuid4()))])
+    player = str(uuid.uuid4())
+    repository.log_predictions([prediction(player)])
     repository.add_decision(
         {
             "player_id": str(uuid.uuid4()),
@@ -100,11 +101,12 @@ def test_injection_sql_sans_effet(repository):
             "comment": malicious,
         }
     )
-    assert len(repository.recent_predictions(limit=10)) == 1  # la table existe toujours
+    assert len(repository.get_player_data(player)["predictions"]) == 1  # table intacte
 
 
 def test_purge_des_predictions_anciennes(repository):
-    repository.log_predictions([prediction(str(uuid.uuid4())), prediction(str(uuid.uuid4()))])
+    player = str(uuid.uuid4())
+    repository.log_predictions([prediction(player), prediction(player)])
     old = datetime.now(timezone.utc) - timedelta(days=400)
     if isinstance(repository, InMemoryRepository):
         repository.predictions[0]["created_at"] = old
@@ -116,7 +118,7 @@ def test_purge_des_predictions_anciennes(repository):
                 (old,),
             )
     assert repository.purge_older_than(days=365) == (1, 0)
-    assert len(repository.recent_predictions(limit=10)) == 1
+    assert len(repository.get_player_data(player)["predictions"]) == 1
 
 
 def test_purge_des_decisions_anciennes(repository):

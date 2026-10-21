@@ -74,18 +74,6 @@ jobs:
       - name: Lancer les tests (pytest)
         run: pytest -v --junitxml=rapport-tests.xml
 
-      - name: Afficher les tests en échec dans le résumé GitHub
-        if: failure()
-        run: |
-          # Chaque test en échec devient une annotation visible directement sur la PR.
-          python - <<'EOF'
-          import xml.etree.ElementTree as ET
-          for case in ET.parse("rapport-tests.xml").iter("testcase"):
-              for problem in list(case.findall("failure")) + list(case.findall("error")):
-                  message = (problem.get("message") or "").replace("\n", " ")[:300]
-                  print(f"::error title={case.get('classname')}.{case.get('name')}::{message}")
-          EOF
-
       - name: Conserver le rapport de tests
         if: always() # même si les tests échouent : c'est là qu'on en a le plus besoin
         uses: actions/upload-artifact@v7
@@ -126,11 +114,11 @@ jobs:
         run: |
           code=$(curl -s -o reponse.json -w "%{http_code}" -X POST http://localhost:8000/predict \
             -H "X-API-Key: cle-de-test-ci" -H "Content-Type: application/json" \
-            -d '{"player_id": "8274bbcc-1f0e-4c1a-9a51-6f2d3c4b5a69", "match_id": "0b9c2f4e-7d1a-4e3b-8c6f-2a1d9e8f7b65",
+            -d '{"fiches": [{"player_id": "8274bbcc-1f0e-4c1a-9a51-6f2d3c4b5a69", "match_id": "0b9c2f4e-7d1a-4e3b-8c6f-2a1d9e8f7b65",
                  "accuracy": 0.31, "headshot_rate": 0.42, "kd_ratio": 2.4, "kills_per_min": 1.2,
                  "damage_per_round": 165, "avg_reaction_ms": 182, "kills_through_smoke_ratio": 0.21,
                  "rank_tier": 6, "account_age_days": 22, "hours_played_total": 29, "reports_received": 3,
-                 "input_device": "clavier_souris", "platform": "pc"}')
+                 "input_device": "clavier_souris", "platform": "pc"}]}')
           cat reponse.json
           test "$code" = "200"
 

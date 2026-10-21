@@ -1,16 +1,15 @@
-# Livraison et déploiement continus (CD) — critères 4.1, 4.3, 4.4, 4.5 et 4.6
+# Livraison continue (CD) — critères 4.1 à 4.6
 #
 # Déclenchement : publication d'une version, c'est-à-dire un tag Git du type v1.2.0.
 #   git tag v1.2.0 && git push origin v1.2.0
 #
-# Enchaînement automatique, sans intervention manuelle :
+# Enchaînement automatique :
 #   1. CI complète (tests, ruff, image + test de démarrage), via ci.yml ;
 #   2. construction et publication de l'image sur le registre GitHub (ghcr.io),
 #      pour Mac Apple Silicon (arm64) et serveurs classiques (amd64) ;
-#   3. création d'une "Release" GitHub avec les notes de version du CHANGELOG ;
-#   4. déploiement sur la machine d'exploitation (runner auto-hébergé), avec test de
-#      fonctionnement et retour automatique à la version précédente en cas d'échec.
-#      Ce job ne s'exécute que si la variable de dépôt DEPLOY_ENABLED vaut "true".
+#   3. création d'une "Release" GitHub avec les notes de version du CHANGELOG.
+# Mise en production ensuite (une commande, voir README) : l'image déployée est
+# exactement celle qui a été testée.
 
 name: CD
 
@@ -91,76 +90,3 @@ jobs:
           echo "" >> notes.md
           echo "Image : \`${IMAGE}:${VERSION#v}\`" >> notes.md
           gh release create "$VERSION" --title "Sentinel $VERSION" --notes-file notes.md
-
-  deployer:
-    name: Déployer sur la machine d'exploitation
-    needs: publier
-    if: vars.DEPLOY_ENABLED == 'true'
-    runs-on: [self-hosted, macOS]
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      packages: read # télécharger l'image depuis ghcr.io
-    environment: production # historique des déploiements visible dans GitHub
-    env:
-      COMPOSE: docker compose -p sentinel-prod -f docker-compose.yml -f docker-compose.prod.yml
-      API_PORT: "8080" # l'environnement de production écoute sur 8080, le développement sur 8000
-    steps:
-      - name: Récupérer le code de la version
-        uses: actions/checkout@v7
-
-      - name: Écrire la configuration à partir des secrets GitHub
-        env:
-          API_KEY: ${{ secrets.API_KEY }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-        run: |
-          umask 077 # fichier lisible uniquement par l'utilisateur du runner
-          {
-            echo "API_KEY=${API_KEY}"
-            echo "POSTGRES_USER=sentinel"
-            echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}"
-            echo "POSTGRES_DB=sentinel"
-          } > .env
-
-      - name: Se connecter au registre GitHub
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Mémoriser la version actuellement en production
-        id: precedente
-        run: |
-          current=$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' sentinel-prod-api-1 2>/dev/null || true)
-          echo "version=${current}" >> "$GITHUB_OUTPUT"
-          echo "Version en production avant déploiement : ${current:-aucune}"
-
-      - name: Déployer la nouvelle version
-        env:
-          SENTINEL_VERSION: ${{ github.ref_name }}
-        run: |
-          export SENTINEL_VERSION="${SENTINEL_VERSION#v}"
-          $COMPOSE pull api
-          $COMPOSE up -d
-
-      - name: Tester le fonctionnement (smoke test)
-        id: smoke
-        run: |
-          for i in $(seq 1 60); do
-            if curl -fsS "http://localhost:${API_PORT}/health" | grep -q '"model_loaded":true'; then
-              echo "Production opérationnelle après ${i} seconde(s)."
-              exit 0
-            fi
-            sleep 1
-          done
-          $COMPOSE logs api --tail 50
-          exit 1
-
-      - name: Revenir à la version précédente en cas d'échec
-        if: failure() && steps.precedente.outputs.version != ''
-        env:
-          SENTINEL_VERSION: ${{ steps.precedente.outputs.version }}
-        run: |
-          echo "Échec du déploiement : retour à la version ${SENTINEL_VERSION}."
-          $COMPOSE up -d
-
-      - name: Nettoyer le fichier de configuration
-        if: always()
-        run: rm -f .env

@@ -1,116 +1,114 @@
-"""Tests du modèle : performance, comparaison à la règle actuelle, sauvegarde, reproductibilité.
+"""Tests du modèle : méthode d'entraînement, performance, équité, robustesse, rapidité."""
 
-Le modèle est entraîné une seule fois (fixture de module) pour que les tests restent
-rapides. On utilise 50 000 lignes : en dessous, le jeu de test contient trop peu de
-tricheurs et les métriques deviennent instables.
-
-Lancer : pytest tests/test_model.py -v
-"""
+import time
 
 import numpy as np
 import pytest
 
-from src.config import ACCEPTANCE_THRESHOLDS, FEATURES, MAX_FALSE_POSITIVE_RATE, TARGET
-from src.data.generate import generate_dataset
-from src.evaluate import precision_at_top, threshold_for_max_fpr
-from src.train import load_champion, save_model, split_by_player, train_and_select
+from src.config import FEATURES, MAX_FPR_GAP, TARGET
+from src.data import generate_dataset
+from src.explain import explain, format_value
+from src.model import (
+    load_champion,
+    save_model,
+    set_champion,
+    split_by_player,
+    threshold_for_max_fpr,
+    train,
+)
 
 
 @pytest.fixture(scope="module")
-def data():
-    return generate_dataset(n_matches=50_000, seed=42)
+def champion():
+    return load_champion()
 
 
 @pytest.fixture(scope="module")
-def result(data):
-    return train_and_select(data, seed=42)
+def fiches():
+    return generate_dataset(2_000, seed=99)
 
 
-# --- Performance (CA-01, critère 1.2) ------------------------------------------
+def test_un_joueur_n_est_jamais_a_la_fois_en_entrainement_et_en_test():
+    train_df, val_df, test_df = split_by_player(generate_dataset(3_000, seed=5), seed=0)
+    players = [set(part["player_id"]) for part in (train_df, val_df, test_df)]
+    assert not players[0] & players[2] and not players[1] & players[2]
 
 
-@pytest.mark.parametrize("metric", list(ACCEPTANCE_THRESHOLDS))
-def test_seuils_du_cahier_des_charges_atteints(result, metric):
-    assert result.test_metrics[metric] >= ACCEPTANCE_THRESHOLDS[metric], (
-        f"{metric} = {result.test_metrics[metric]} < seuil {ACCEPTANCE_THRESHOLDS[metric]}"
-    )
-
-
-def test_faux_positifs_maitrises(result):
-    # Seuil fixé sur la validation : on tolère un léger dépassement sur le test.
-    assert result.test_metrics["false_positive_rate"] <= MAX_FALSE_POSITIVE_RATE * 1.5
-
-
-def test_bat_la_regle_des_signalements(result):
-    model, baseline = result.test_metrics, result.baseline_test_metrics
-    assert model["pr_auc"] > 2 * baseline["pr_auc"]
-    assert model["precision_top"] > baseline["precision_top"]
-
-
-# --- Méthodologie ----------------------------------------------------------------
-
-
-def test_aucun_joueur_dans_deux_jeux_a_la_fois(data):
-    """Pas de fuite de données : un joueur est entièrement dans train, validation OU test."""
-    train, val, test = split_by_player(data, seed=42)
-    train_ids, val_ids, test_ids = (set(d["player_id"]) for d in (train, val, test))
-    assert not train_ids & val_ids
-    assert not train_ids & test_ids
-    assert not val_ids & test_ids
-    assert len(train) + len(val) + len(test) == len(data)
-
-
-def test_entrainement_reproductible():
-    """Même données + même graine -> mêmes métriques (critère 3.5)."""
-    df = generate_dataset(n_matches=8_000, seed=7)
-    first = train_and_select(df, seed=7).test_metrics
-    second = train_and_select(df, seed=7).test_metrics
-    assert first == second
-
-
-def test_probabilites_entre_0_et_1(result, data):
-    scores = result.model.predict_proba(data[FEATURES].head(200))[:, 1]
-    assert np.all((scores >= 0) & (scores <= 1))
-
-
-# --- Fonctions d'évaluation ------------------------------------------------------
-
-
-def test_precision_at_top():
-    y = np.array([1, 0, 1, 0, 0, 0, 0, 0, 0, 0])
-    scores = np.array([0.9, 0.8, 0.7, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
-    assert precision_at_top(y, scores, share=0.2) == 0.5  # top 2 : un tricheur sur deux
-
-
-def test_seuil_respecte_le_plafond_de_faux_positifs():
+def test_le_seuil_limite_les_faux_positifs():
     rng = np.random.default_rng(0)
     y = (rng.random(5_000) < 0.05).astype(int)
-    scores = rng.random(5_000) + 0.5 * y
+    scores = rng.random(5_000) + y * 0.5
     threshold = threshold_for_max_fpr(y, scores, max_fpr=0.01)
-    fpr = np.mean(scores[y == 0] >= threshold)
-    assert fpr <= 0.01
+    assert (scores[y == 0] >= threshold).mean() <= 0.01
 
 
-# --- Sauvegarde et chargement ------------------------------------------------------
+def test_le_modele_en_production_respecte_le_cahier_des_charges(champion):
+    _, meta = champion
+    assert meta["acceptance"]["passed"], meta["acceptance"]["details"]
+    # Bien meilleur que la règle actuelle (trier par nombre de signalements).
+    assert meta["test_metrics"]["precision_top"] > meta["baseline_test_metrics"]["precision_top"]
 
 
-def test_sauvegarde_et_rechargement(result, data, tmp_path):
-    save_model(result, version="test", seed=42, models_dir=tmp_path)
-    model, metadata = load_champion(models_dir=tmp_path)
-
-    assert metadata["version"] == "test"
-    assert metadata["threshold"] == result.threshold
-    assert "fingerprint" in metadata["data"]
-    sample = data[FEATURES].head(50)
-    np.testing.assert_allclose(
-        model.predict_proba(sample)[:, 1], result.model.predict_proba(sample)[:, 1]
-    )
+def test_le_modele_est_equitable_entre_groupes(champion):
+    for group, report in champion[1]["fairness"].items():
+        assert report["gap"] < MAX_FPR_GAP, group
 
 
-def test_erreur_claire_si_aucun_modele(tmp_path):
-    with pytest.raises(FileNotFoundError, match="python -m src.train"):
-        load_champion(models_dir=tmp_path)
+def test_entrainement_reproductible_et_tracable(tmp_path):
+    df = generate_dataset(8_000, seed=7)
+    model, info = train(df, seed=7)
+    _, info_again = train(df, seed=7)
+    assert info["threshold"] == info_again["threshold"]  # même graine, même résultat
+    save_model(model, info, "v1", seed=7, models_dir=tmp_path)
+    _, meta = load_champion(tmp_path)
+    assert meta["data"]["fingerprint"] and meta["git_commit"] and meta["seed"] == 7
+    assert "player_id" not in (tmp_path / "reference_v1.csv").read_text().splitlines()[0]
+    with pytest.raises(FileNotFoundError):
+        set_champion("v9", tmp_path)
 
 
-def test_cible_bien_presente(data):
-    assert set(data[TARGET].unique()) == {0, 1}
+def test_robuste_aux_valeurs_manquantes_et_inconnues(champion, fiches):
+    model, _ = champion
+    X = fiches[FEATURES].head(50).copy()
+    X.loc[X.index[:10], "avg_reaction_ms"] = np.nan  # télémétrie perdue
+    X.loc[X.index[10:20], "platform"] = "cloud"  # plateforme jamais vue
+    scores = model.predict_proba(X)[:, 1]
+    assert np.isfinite(scores).all()
+
+
+def test_robuste_a_un_leger_bruit(champion, fiches):
+    """Un bruit de mesure de 1 % ne doit pas bouleverser le classement des fiches."""
+    model, _ = champion
+    X = fiches[FEATURES]
+    noisy = X.copy()
+    noisy["accuracy"] = (X["accuracy"] * 1.01).clip(0, 1)
+    top = set(np.argsort(-model.predict_proba(X)[:, 1])[:50])
+    top_noisy = set(np.argsort(-model.predict_proba(noisy)[:, 1])[:50])
+    assert len(top & top_noisy) >= 40
+
+
+def test_temps_de_reponse_inferieur_a_200_ms(champion, fiches):
+    model, meta = champion
+    one = fiches[FEATURES].head(1)
+    durations = []
+    for _ in range(30):
+        start = time.perf_counter()
+        model.predict_proba(one)
+        durations.append(time.perf_counter() - start)
+    assert np.percentile(durations, 95) < 0.2
+
+
+def test_explications_lisibles(champion, fiches):
+    pytest.importorskip("shap")
+    model, meta = champion
+    reasons = explain(model, fiches[FEATURES].head(3), meta["explain_info"])
+    assert len(reasons) == 3 and all(len(r) == 3 for r in reasons)
+    assert "risque" in reasons[0][0]["text"]
+    assert format_value("accuracy", 0.31) == "31 %"
+    assert format_value("avg_reaction_ms", float("nan")) == "non mesuré"
+
+
+def test_les_variables_d_audit_ne_sont_pas_utilisees(champion):
+    _, meta = champion
+    assert "age_band" not in meta["features"] and "accessibility_mode" not in meta["features"]
+    assert TARGET not in meta["features"]

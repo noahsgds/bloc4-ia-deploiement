@@ -1,22 +1,18 @@
-# Surveillance du modèle en production — critères 3.4 (dérive du modèle) et 2.3 (alertes) du bloc 4
+# Surveillance du modèle — critères 2.3 (alertes) et 3.4 (dérive) du bloc 4
 #
-# Chaque jour (et à la demande), GitHub :
-#   1. compare les matchs récents aux données d'entraînement (dérive des données, Evidently) ;
-#   2. recalcule les performances sur les fiches dont la vérité est connue ;
-#   3. publie le rapport HTML en "artefact" téléchargeable ;
-#   4. en cas d'alerte, ouvre un ticket (issue) GitHub pour l'équipe ;
-#   5. puis lance le réentraînement (retrain.yml) : si un meilleur modèle est trouvé, il est
-#      proposé en Pull Request, que l'équipe valide avant toute mise en production.
+# Chaque jour, et à la demande (onglet Actions → « Surveillance du modèle » → Run workflow) :
+#   1. compare les fiches récentes aux données d'entraînement et recalcule la performance ;
+#   2. garde le rapport HTML Evidently (téléchargeable dans l'exécution) ;
+#   3. en cas d'alerte, ouvre un ticket (issue) GitHub pour l'équipe.
+# Le réentraînement est ensuite lancé par une personne : python -m monitoring.retrain
 #
-# Démo : les "matchs récents" sont synthétiques. Le choix du scénario (normal, patch,
-# humanisee) permet de montrer au jury une exécution sans alerte et deux alertes différentes.
-# En production réelle, on remplacerait --scenario par un export des matchs de la veille.
+# Démo : les fiches récentes sont synthétiques ; le scénario choisit la situation simulée.
 
 name: Surveillance du modèle
 
 on:
   schedule:
-    - cron: "17 6 * * *" # tous les jours à 6 h 17 UTC (minute décalée pour éviter l'heure pile)
+    - cron: "17 6 * * *" # tous les jours à 6 h 17 UTC
   workflow_dispatch:
     inputs:
       scenario:
@@ -25,90 +21,37 @@ on:
         options: [normal, patch, humanisee]
         default: normal
 
-# Aucun droit par défaut : chaque job déclare le strict nécessaire.
-permissions: {}
+permissions:
+  contents: read
+  issues: write # ouvrir un ticket en cas d'alerte, rien d'autre
 
 jobs:
   surveiller:
     name: Dérive des données et performance
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: read
-      issues: write # ouvrir un ticket en cas d'alerte, rien d'autre
-    outputs:
-      status: ${{ steps.statut.outputs.status }}
-      ticket: ${{ steps.ticket.outputs.url }}
     env:
       SCENARIO: ${{ inputs.scenario || 'normal' }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Récupérer le code
-        uses: actions/checkout@v7
-
-      - name: Installer Python 3.11
-        uses: actions/setup-python@v7
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
-
-      - name: Installer les dépendances (versions figées)
-        run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
 
       - name: Lancer le contrôle
-        run: python -m monitoring.drift_report --scenario "$SCENARIO"
+        run: python -m monitoring.monitor --scenario "$SCENARIO" | tee resultat.txt
 
       - name: Conserver le rapport
-        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: rapport-derive-${{ env.SCENARIO }}
+          name: rapport-${{ env.SCENARIO }}
           path: monitoring/reports/
-          retention-days: 30
-
-      - name: Lire le statut
-        id: statut
-        run: |
-          status=$(python -c "import json; print(json.load(open('monitoring/reports/dernier_resume.json'))['status'])")
-          echo "Statut : ${status}"
-          echo "status=${status}" >> "$GITHUB_OUTPUT"
 
       - name: Ouvrir un ticket en cas d'alerte
-        id: ticket
-        if: steps.statut.outputs.status == 'alerte'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          python - <<'EOF' > ticket.md
-          import json, os
-          s = json.load(open("monitoring/reports/dernier_resume.json"))
-          print(f"Le contrôle du {s['created_at']} (modèle {s['model_version']}, "
-                f"{s['n_rows']} lignes, scénario `{s['label']}`) a levé une alerte.\n")
-          print("**Raisons**\n")
-          for r in s["reasons"]:
-              print(f"- {r}")
-          print("\n**Actions attendues**\n")
-          print("1. Ouvrir le rapport HTML (artefact de l'exécution) et identifier la cause.")
-          print("2. Dérive des données seule : vérifier une mise à jour du jeu ; réentraîner si les faux positifs augmentent.")
-          print("3. Baisse de PR-AUC : nouvelle forme de triche probable, faire étiqueter des cas récents puis réentraîner.")
-          print("4. Un réentraînement est lancé automatiquement ; son résultat sera ajouté ici.")
-          print("5. En attendant : les modérateurs restent seuls décideurs, aucune sanction automatique.\n")
-          print(f"Exécution : {os.environ['RUN_URL']}")
-          EOF
-          gh label create derive-modele --color d93f0b --description "Alerte de surveillance du modèle" 2>/dev/null || true
-          url=$(gh issue create --title "Alerte surveillance Sentinel ($SCENARIO)" --label derive-modele --body-file ticket.md)
-          echo "url=${url}" >> "$GITHUB_OUTPUT"
-          echo "::warning::Alerte de surveillance : ticket ${url}"
-
-  reentrainer:
-    name: Réentraînement après alerte
-    needs: surveiller
-    if: needs.surveiller.outputs.status == 'alerte'
-    uses: ./.github/workflows/retrain.yml
-    with:
-      scenario: ${{ inputs.scenario || 'normal' }}
-      ticket: ${{ needs.surveiller.outputs.ticket }}
-    permissions:
-      contents: write # pousser la branche du nouveau modèle
-      pull-requests: write # proposer le nouveau modèle en Pull Request
-      issues: write # compléter le ticket d'alerte
+          if grep -q "Statut : alerte" resultat.txt; then
+            gh issue create --title "Alerte surveillance Sentinel ($SCENARIO)" --body-file resultat.txt
+          fi

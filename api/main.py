@@ -1,300 +1,245 @@
-"""API de prédiction Sentinel (FastAPI).
+"""API Sentinel (FastAPI) : score de suspicion et explications pour les modérateurs.
 
-Lancer en local :
-    uvicorn api.main:app --reload
+Lancer en local :  uvicorn api.main:app --reload
 Documentation interactive générée automatiquement : http://localhost:8000/docs
 
 Routes :
-    GET    /health                        état du service (sans authentification)
-    GET    /model-info                    version, métriques et équité du modèle en production
-    POST   /predict                       score d'une fiche (joueur, match) + 3 raisons
-    POST   /predict/batch                 file de revue : lot trié du plus au moins suspect
-    POST   /players/{player_id}/decisions décision humaine d'un modérateur
-    GET    /players/{player_id}/data      droit d'accès (RGPD art. 15)
-    DELETE /players/{player_id}/data      droit à l'effacement (RGPD art. 17)
-    POST   /profiles/validate             validation ligne par ligne d'un import
-    GET    /console/                      console de modération (interface web)
+    GET    /health                         le service fonctionne-t-il ? (sans clé)
+    GET    /model-info                     version, mesures et équité du modèle en production
+    POST   /predict                        score + 3 raisons pour 1 à 1 000 fiches
+    POST   /players/{player_id}/decisions  décision humaine d'un modérateur
+    GET    /players/{player_id}/data       droit d'accès RGPD
+    DELETE /players/{player_id}/data       droit à l'effacement RGPD
+    GET    /console/                       console de modération (page web)
 """
 
 import json
 import logging
 import os
+import secrets
 import time
-import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+import pandas as pd
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 
 from api.repository import InMemoryRepository, PostgresRepository
-from api.schemas import (
-    BatchRequest,
-    BatchResponse,
-    Decision,
-    DecisionRequest,
-    DeletionResult,
-    Health,
-    MatchStats,
-    PlayerData,
-    Prediction,
-    ValidationReport,
-    ValidationRequest,
-)
-from api.security import expected_api_key, require_api_key
-from api.service import ModelService
-from api.validation import validate_rows
+from api.schemas import DecisionRequest, PredictRequest
 from src.config import FEATURES, MODELS_DIR
-
-
-class JsonFormatter(logging.Formatter):
-    """Logs au format JSON (une ligne = un événement) : faciles à filtrer et à analyser."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        entry = {"level": record.levelname, "message": record.getMessage()}
-        entry.update(getattr(record, "extra_fields", {}))
-        if record.exc_info:
-            entry["exception"] = self.formatException(record.exc_info)
-        return json.dumps(entry, ensure_ascii=False, default=str)
-
-
-logger = logging.getLogger("sentinel")
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(JsonFormatter())
-    logger.addHandler(handler)
-logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
-
-
-def log(level: int, message: str, **fields) -> None:
-    logger.log(level, message, extra={"extra_fields": fields})
-
+from src.explain import explain
+from src.model import load_champion
 
 CONSOLE_DIR = Path(__file__).parent / "static" / "console"
 
-# En-têtes de sécurité de la console. La politique CSP n'autorise que les ressources servies
-# par l'API elle-même : aucun script, police ou image externe (pas de fuite de données vers
-# un tiers), et elle bloque l'exécution de scripts injectés (protection contre le XSS).
-CONSOLE_SECURITY_HEADERS = {
-    "Content-Security-Policy": (
-        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
-        "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
-    ),
+# --- Journaux au format JSON (une ligne = un événement, jamais le contenu des fiches) ------
+logger = logging.getLogger("sentinel")
+if not logger.handlers:
+    logger.addHandler(logging.StreamHandler())
+logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
+
+
+def log(message: str, level: int = logging.INFO, **fields) -> None:
+    logger.log(level, json.dumps({"message": message, **fields}, ensure_ascii=False, default=str))
+
+
+# --- Sécurité -----------------------------------------------------------------------------
+
+
+def expected_api_key() -> str:
+    """Clé lue dans la variable d'environnement API_KEY (fichier .env), jamais dans le code."""
+    key = os.environ.get("API_KEY", "")
+    if not key or key == "change-me":
+        raise RuntimeError("API_KEY n'est pas configurée (voir .env.example).")
+    return key
+
+
+def require_api_key(key: str | None = Depends(APIKeyHeader(name="X-API-Key", auto_error=False))):
+    """Refuse la requête (401) sans la bonne clé dans l'en-tête X-API-Key.
+
+    compare_digest compare en temps constant : impossible de deviner la clé caractère
+    par caractère en mesurant le temps de réponse.
+    """
+    if key is None or not secrets.compare_digest(key, expected_api_key()):
+        raise HTTPException(401, "Clé d'API absente ou invalide (en-tête X-API-Key).")
+
+
+# La console n'autorise que ses propres fichiers : aucun script externe ou injecté (XSS).
+SECURITY_HEADERS = {
+    "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'",
     "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
 }
 
+# Messages d'erreur en français pour les erreurs de format les plus courantes.
+ERRORS_FR = {
+    "missing": "champ obligatoire manquant",
+    "extra_forbidden": "champ non autorisé",
+    "greater_than_equal": "valeur trop petite",
+    "less_than_equal": "valeur trop grande",
+    "literal_error": "valeur non autorisée",
+    "uuid_parsing": "identifiant invalide",
+    "float_parsing": "nombre attendu",
+    "int_parsing": "nombre entier attendu",
+    "int_from_float": "nombre entier attendu",
+    "int_type": "nombre entier attendu",
+    "float_type": "nombre attendu",
+    "too_long": "trop de fiches (1 000 maximum)",
+}
 
-def build_repository():
-    """Postgres si DATABASE_URL est défini, sinon stockage en mémoire."""
-    database_url = os.environ.get("DATABASE_URL")
-    return PostgresRepository(database_url) if database_url else InMemoryRepository()
+
+# --- Application --------------------------------------------------------------------------
 
 
 def create_app(repository=None, models_dir=MODELS_DIR) -> FastAPI:
-    """Construit l'application. Les paramètres permettent aux tests d'injecter leurs objets."""
+    """Construit l'application. Les tests y injectent un stockage en mémoire."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         expected_api_key()  # arrêt immédiat si la clé n'est pas configurée
-        app.state.repository = repository or build_repository()
-        app.state.repository.init_schema()
-        try:
-            app.state.service = ModelService(models_dir)
-            log(logging.INFO, "modèle chargé", model_version=app.state.service.version)
-        except FileNotFoundError as error:
-            # L'API démarre quand même (pour exposer /health) mais refuse de prédire.
-            app.state.service = None
-            log(logging.ERROR, "modèle introuvable", error=str(error))
+        url = os.environ.get("DATABASE_URL")
+        app.state.db = repository or (PostgresRepository(url) if url else InMemoryRepository())
+        app.state.db.init_schema()
+        app.state.model, app.state.meta = load_champion(models_dir)
+        log("modèle chargé", version=app.state.meta["version"])
         yield
 
-    app = FastAPI(
-        title="Sentinel — API de détection de triche",
-        description="Score de suspicion et explications pour la file de revue des modérateurs.",
-        version="1.0.0",
-        lifespan=lifespan,
-    )
+    app = FastAPI(title="Sentinel — détection de triche", version="1.0.0", lifespan=lifespan)
 
     @app.middleware("http")
-    async def access_log(request: Request, call_next):
-        """Journalise chaque requête : route, statut, durée. Jamais le contenu (données)."""
-        request_id = str(uuid.uuid4())[:8]
+    async def journal(request: Request, call_next):
+        """Journalise chaque requête (route, statut, durée) et ajoute les en-têtes de sécurité."""
         start = time.perf_counter()
         response = await call_next(request)
-        route = request.scope.get("route")
-        log(
-            logging.INFO,
-            "requête",
-            request_id=request_id,
-            method=request.method,
-            route=getattr(route, "path", request.url.path),  # modèle de route, pas l'id joueur
-            status=response.status_code,
-            duration_ms=round((time.perf_counter() - start) * 1000, 1),
-        )
-        response.headers["X-Request-ID"] = request_id
-        if request.url.path.startswith("/console"):
-            response.headers.update(CONSOLE_SECURITY_HEADERS)
+        route = getattr(request.scope.get("route"), "path", request.url.path)  # pas l'id joueur
+        duration = round((time.perf_counter() - start) * 1000, 1)
+        log("requête", route=route, status=response.status_code, ms=duration)
+        response.headers.update(SECURITY_HEADERS)
         return response
 
+    @app.exception_handler(RequestValidationError)
+    async def invalid_data(request: Request, error: RequestValidationError):
+        """Données invalides : 422 avec, pour chaque problème, où il est et pourquoi."""
+        problems = []
+        for e in error.errors():
+            where = ".".join(str(part) for part in e["loc"][1:])  # ex. "fiches.2.accuracy"
+            problems.append(
+                {"loc": e["loc"], "message": f"{where} : {ERRORS_FR.get(e['type'], e['msg'])}"}
+            )
+        return JSONResponse(status_code=422, content={"detail": problems})
+
     @app.exception_handler(Exception)
-    async def unexpected_error(request: Request, error: Exception):
-        """Erreur imprévue : journalisée avec sa trace, message neutre pour l'appelant."""
-        log(logging.ERROR, "erreur interne", path=request.url.path, error=repr(error))
-        logger.exception(error)
-        return JSONResponse(
-            status_code=500, content={"detail": "Erreur interne. L'incident a été journalisé."}
-        )
+    async def unexpected(request: Request, error: Exception):
+        """Erreur imprévue : tracée dans les journaux, message neutre pour l'appelant."""
+        log("erreur interne", logging.ERROR, path=request.url.path, error=repr(error))
+        return JSONResponse(status_code=500, content={"detail": "Erreur interne journalisée."})
 
-    def get_service(request: Request) -> ModelService:
-        service = request.app.state.service
-        if service is None:
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Aucun modèle chargé.")
-        return service
+    secured = [Depends(require_api_key)]
 
-    def log_predictions(request: Request, records: list[dict], results: list[dict]) -> None:
-        """Journalise les prédictions (traçabilité + monitoring de la dérive).
-
-        Si la base est indisponible, la prédiction est quand même renvoyée : le service
-        reste disponible pour les modérateurs, et l'incident est journalisé.
-        """
-        rows = [
-            {
-                **{k: result[k] for k in ("player_id", "match_id", "model_version")},
-                "suspicion_score": result["suspicion_score"],
-                "flagged": result["flagged"],
-                "features": {feature: record[feature] for feature in FEATURES},
-            }
-            for record, result in zip(records, results)
-        ]
-        try:
-            request.app.state.repository.log_predictions(rows)
-        except Exception as error:  # noqa: BLE001 - toute erreur de stockage est tolérée ici
-            log(logging.ERROR, "journalisation des prédictions impossible", error=repr(error))
-
-    # --- Routes -----------------------------------------------------------------------
-
-    @app.get("/health", response_model=Health, tags=["Service"])
+    @app.get("/health", tags=["Service"])
     def health(request: Request):
-        service = request.app.state.service
-        body = {
-            "status": "ok" if service else "degraded",
-            "model_loaded": service is not None,
-            "model_version": service.version if service else None,
-            "database": request.app.state.repository.kind,
-        }
-        return JSONResponse(body, status_code=200 if service else 503)
+        return {"status": "ok", "model_version": request.app.state.meta["version"]}
 
-    @app.get("/model-info", tags=["Service"], dependencies=[Depends(require_api_key)])
-    def model_info(service: ModelService = Depends(get_service)):
-        return service.info()
+    @app.get("/model-info", tags=["Service"], dependencies=secured)
+    def model_info(request: Request):
+        meta = request.app.state.meta
+        public = ["version", "model_name", "created_at", "threshold", "test_metrics",
+                  "baseline_test_metrics", "fairness", "acceptance", "data"]  # fmt: skip
+        return {key: meta[key] for key in public}
+
+    @app.post("/predict", tags=["Prédiction"], dependencies=secured)
+    def predict(body: PredictRequest, request: Request):
+        """Score de suspicion et 3 raisons par fiche, triées de la plus à la moins suspecte.
+
+        Le score sert à TRIER la file de revue : ce n'est pas une probabilité, et le modèle
+        ne sanctionne jamais (décision humaine obligatoire).
+        """
+        model, meta = request.app.state.model, request.app.state.meta
+        fiches = [f.model_dump(mode="json") for f in body.fiches]
+        X = pd.DataFrame(fiches)[FEATURES].astype({"avg_reaction_ms": float})  # None -> NaN
+        scores = model.predict_proba(X)[:, 1]
+        reasons = explain(model, X, meta["explain_info"])
+        threshold = meta["threshold"]
+
+        results = [
+            {
+                "player_id": fiche["player_id"],
+                "match_id": fiche["match_id"],
+                "suspicion_score": round(float(score), 4),
+                "flagged": bool(score >= threshold),
+                "priority": "haute"
+                if score >= threshold
+                else "moyenne"
+                if score >= threshold / 2
+                else "basse",
+                "reasons": fiche_reasons,
+                "model_version": meta["version"],
+            }
+            for fiche, score, fiche_reasons in zip(fiches, scores, reasons)
+        ]
+        # Journal des prédictions (traçabilité, droit d'accès). Si la base est en panne, les
+        # modérateurs reçoivent quand même les scores et l'incident est journalisé.
+        try:
+            request.app.state.db.log_predictions(
+                [
+                    {
+                        **{
+                            k: r[k]
+                            for k in (
+                                "player_id",
+                                "match_id",
+                                "suspicion_score",
+                                "flagged",
+                                "model_version",
+                            )
+                        },
+                        "features": {k: f[k] for k in FEATURES},
+                    }
+                    for f, r in zip(fiches, results)
+                ]  # fmt: skip
+            )
+        except Exception as error:  # noqa: BLE001
+            log("journalisation impossible", logging.ERROR, error=repr(error))
+
+        results.sort(key=lambda r: r["suspicion_score"], reverse=True)
+        return {"model_version": meta["version"], "count": len(results), "predictions": results}
 
     @app.post(
-        "/predict",
-        response_model=Prediction,
-        tags=["Prédiction"],
-        dependencies=[Depends(require_api_key)],
+        "/players/{player_id}/decisions", status_code=201, tags=["Modération"], dependencies=secured
     )
-    def predict(stats: MatchStats, request: Request, service=Depends(get_service)):
-        record = stats.model_dump()
-        result = service.predict([record])
-        log_predictions(request, [record], result)
-        return result[0]
-
-    @app.post(
-        "/predict/batch",
-        response_model=BatchResponse,
-        tags=["Prédiction"],
-        dependencies=[Depends(require_api_key)],
-    )
-    def predict_batch(
-        batch: BatchRequest,
-        request: Request,
-        with_reasons: bool = Query(True, description="Calculer les 3 raisons de chaque fiche"),
-        service=Depends(get_service),
-    ):
-        records = [item.model_dump() for item in batch.items]
-        results = service.predict(records, with_reasons=with_reasons)
-        log_predictions(request, records, results)
-        ordered = sorted(results, key=lambda r: r["suspicion_score"], reverse=True)
-        return {
-            "model_version": service.version,
-            "count": len(ordered),
-            "flagged_count": sum(r["flagged"] for r in ordered),
-            "predictions": ordered,
-        }
-
-    @app.post(
-        "/profiles/validate",
-        response_model=ValidationReport,
-        tags=["Prédiction"],
-        dependencies=[Depends(require_api_key)],
-    )
-    def validate_profiles(payload: ValidationRequest):
-        """Vérifie chaque ligne d'un import et explique les erreurs, sans rien scorer."""
-        return validate_rows(payload.rows)
-
-    @app.post(
-        "/players/{player_id}/decisions",
-        response_model=Decision,
-        status_code=status.HTTP_201_CREATED,
-        tags=["Modération"],
-        dependencies=[Depends(require_api_key)],
-    )
-    def add_decision(player_id: UUID, decision: DecisionRequest, request: Request):
-        """Enregistre la décision HUMAINE : le modèle ne sanctionne jamais seul."""
-        row = {"player_id": player_id, **decision.model_dump()}
-        stored = request.app.state.repository.add_decision(row)
-        log(logging.INFO, "décision enregistrée", decision=decision.decision)
+    def add_decision(player_id: UUID, body: DecisionRequest, request: Request):
+        """Enregistre la décision du modérateur : le modèle ne sanctionne jamais seul."""
+        stored = request.app.state.db.add_decision({"player_id": player_id, **body.model_dump()})
+        log("décision enregistrée", decision=body.decision)
         return stored
 
-    @app.get(
-        "/players/{player_id}/data",
-        response_model=PlayerData,
-        tags=["RGPD"],
-        dependencies=[Depends(require_api_key)],
-    )
-    def player_data(player_id: UUID, request: Request):
-        """Droit d'accès : toutes les prédictions et décisions concernant un joueur."""
-        data = request.app.state.repository.get_player_data(str(player_id))
-        log(logging.INFO, "droit d'accès exercé", player_id=str(player_id))
-        return {"player_id": player_id, **data}
+    @app.get("/players/{player_id}/data", tags=["RGPD"], dependencies=secured)
+    def access(player_id: UUID, request: Request):
+        """Droit d'accès (art. 15) : tout ce que Sentinel conserve sur ce joueur."""
+        log("droit d'accès exercé", player_id=player_id)  # preuve de traitement (art. 5.2)
+        return {"player_id": player_id, **request.app.state.db.get_player_data(str(player_id))}
 
-    @app.delete(
-        "/players/{player_id}/data",
-        response_model=DeletionResult,
-        tags=["RGPD"],
-        dependencies=[Depends(require_api_key)],
-    )
-    def delete_player_data(player_id: UUID, request: Request):
-        """Droit à l'effacement.
+    @app.delete("/players/{player_id}/data", tags=["RGPD"], dependencies=secured)
+    def erase(player_id: UUID, request: Request):
+        """Droit à l'effacement (art. 17).
 
-        Exception : si une triche a été confirmée, les éléments sont conservés le temps
-        de la procédure de contestation (cahier des charges, section 8).
+        Exception : si une triche a été confirmée, les éléments sont gardés jusqu'à la fin
+        de la procédure de contestation (art. 17.3.e) ; l'API répond 409 et l'explique.
         """
-        repository = request.app.state.repository
-        if repository.has_confirmed_cheat(str(player_id)):
-            log(logging.INFO, "effacement différé (contestation)", player_id=str(player_id))
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                "Effacement différé : une sanction pour triche est en cours, les éléments "
-                "sont conservés jusqu'à la fin de la procédure de contestation.",
-            )
-        n_pred, n_dec = repository.delete_player_data(str(player_id))
-        # L'identifiant pseudonyme est journalisé pour prouver que la demande a été traitée
-        # (principe de responsabilité, article 5.2 du RGPD).
-        log(
-            logging.INFO,
-            "droit à l'effacement exercé",
-            player_id=str(player_id),
-            deleted_predictions=n_pred,
-            deleted_decisions=n_dec,
-        )
-        return {"player_id": player_id, "deleted_predictions": n_pred, "deleted_decisions": n_dec}
+        db = request.app.state.db
+        if db.has_confirmed_cheat(str(player_id)):
+            log("effacement différé (contestation)", player_id=player_id)
+            raise HTTPException(409, "Effacement différé : sanction en cours de contestation.")
+        n_predictions, n_decisions = db.delete_player_data(str(player_id))
+        log("droit à l'effacement exercé", player_id=player_id, predictions=n_predictions)
+        return {"player_id": player_id, "deleted_predictions": n_predictions,
+                "deleted_decisions": n_decisions}  # fmt: skip
 
-    # --- Console de modération (fichiers statiques) ------------------------------------
     app.mount("/console", StaticFiles(directory=CONSOLE_DIR, html=True), name="console")
 
     @app.get("/", include_in_schema=False)

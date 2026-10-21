@@ -2,7 +2,7 @@
 
 > Historique des étapes du projet, des décisions prises et de leur validation.
 > Sert de fil conducteur pour la présentation et les questions du jury.
-> Dernière mise à jour : 16 octobre 2026.
+> Dernière mise à jour : 21 octobre 2026.
 
 ## Vue d'ensemble
 
@@ -24,7 +24,7 @@
 | 12 | Slides et vidéo | ⏳ | — |
 | 13 | Audit final contre la grille et entraînement au jury | ⏳ | — |
 
-Total actuel : **139 tests automatisés**, `ruff` sans erreur, 10 Pull Requests fusionnées.
+Total actuel : **50 tests automatisés**, `ruff` sans erreur. Code simplifié le 21/10 (voir « Simplification »).
 
 ---
 
@@ -269,6 +269,33 @@ Total actuel : **139 tests automatisés**, `ruff` sans erreur, 10 Pull Requests 
   - pourquoi pas de certification ISO 27001 (démarche appliquée, pas d'organisation à certifier).
 - **Limite assumée :** une clé d'API partagée ; cible = comptes individuels avec double facteur et rôles.
 
+## Simplification (21/10) — rendre tout explicable
+
+**Pourquoi :** le projet était devenu trop complexe pour être expliqué ligne par ligne devant
+le jury (environ 6 000 lignes, plusieurs mécanismes avancés). Le jury vérifie que je suis
+l'auteur : un livrable simple et maîtrisé vaut mieux qu'un livrable impressionnant mais opaque.
+
+**Ce qui a changé :**
+
+| Avant | Après |
+|---|---|
+| 9 fichiers dans `src/` | 3 fichiers : `data.py`, `model.py`, `explain.py` |
+| 7 fichiers dans `api/`, 2 routes de prédiction, route de validation | 4 fichiers, une seule route `/predict` (1 à 1 000 fiches), erreurs en français |
+| Console 4 onglets, graphiques | 2 onglets : file de revue, fiche |
+| Réentraînement : fenêtre glissante, recalage du seuil, 200 tirages aléatoires, recette des données | Réentraînement sur les fiches récentes, examen commun, 3 règles (meilleur, ≤ 1,5 % d'honnêtes signalés, équitable) |
+| Chaîne GitHub surveillance → réentraînement → Pull Request → commentaire | Surveillance quotidienne → ticket ; réentraînement lancé par une personne |
+| Déploiement automatique sur un runner auto-hébergé | Publication de l'image ; déploiement en une commande |
+| 140 tests | 50 tests, un par exigence importante |
+
+**Ce qui n'a pas changé :** les résultats du modèle v1 (identiques), les explications SHAP,
+l'audit d'équité, la sécurité de l'API, les droits RGPD, la purge, Docker, la CI/CD, la
+documentation RGPD et sécurité. Total : environ 2 800 lignes au lieu de 6 000.
+
+**Résultats des scénarios après simplification :** normal → v1 conservé ; patch → v1 signale
+4,9 % d'honnêtes, le nouveau modèle 0,85 %, promu ; triche humanisée → promu (PR-AUC 0,14 →
+0,22) mais insuffisant. Les sections des étapes 9 et 10 ci-dessus décrivent la version
+d'avant ; le [guide d'explication](guide_explication.md) décrit la version actuelle.
+
 ---
 
 ## Couverture de la grille (état au 21/10, après l'étape 7)
@@ -311,4 +338,4 @@ Total actuel : **139 tests automatisés**, `ruff` sans erreur, 10 Pull Requests 
 
 ## Prochaine étape
 
-**Étape 11 : documentation finale** (architecture, fiche modèle, matrice de traçabilité exigences → code → tests, audit d'accessibilité).
+**Étape 11 : documentation finale** (schéma d'architecture, fiche modèle, matrice de traçabilité exigences → code → tests), puis passage au bloc 3.

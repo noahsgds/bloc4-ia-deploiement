@@ -152,7 +152,7 @@ legend { font-weight: 600; padding: 0 0.35rem; }
 @media (max-width: 860px) { .import-grid { grid-template-columns: 1fr; } }
 .dropzone {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem;
-  min-height: 260px; padding: 2rem; text-align: center;
+  min-height: 120px; padding: 1.5rem; margin-bottom: 1.5rem; text-align: center;
   border: 2px dashed var(--line); border-radius: var(--radius); background: rgba(18, 23, 29, 0.6);
   transition: border-color 0.15s ease, background 0.15s ease;
 }

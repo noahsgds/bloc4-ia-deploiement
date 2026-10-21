@@ -76,13 +76,13 @@ Le taux de faux positifs est retenu comme métrique d'équité car le préjudice
 
 ## 6. Exigences fonctionnelles
 
-- **F1** – `POST /predict` : score de triche d'un joueur sur un match, niveau de priorité, version du modèle.
-- **F2** – `POST /predict/batch` : scoring d'une liste, renvoyée triée par suspicion (file de revue). Maximum 1 000 lignes par requête.
+- **F1** – `POST /predict` : score de suspicion, niveau de priorité et version du modèle pour chaque fiche (joueur, match), de 1 à 1 000 fiches par requête.
+- **F2** – File de revue : les fiches sont renvoyées triées de la plus à la moins suspecte.
 - **F3** – Explication des 3 facteurs principaux (SHAP), formulée en français clair.
 - **F4** – `GET /health` et `GET /model-info` : état du service, version et métriques du modèle.
 - **F5** – Journalisation de chaque prédiction (monitoring et traçabilité).
 - **F6** – Rapport de drift (Evidently) comparant les données récentes aux données d'entraînement.
-- **F7** – Réentraînement automatique. Le nouveau modèle n'est promu que s'il bat le modèle en place **et** respecte les seuils d'équité.
+- **F7** – Réentraînement sur les fiches récentes, lancé après une alerte. Le nouveau modèle n'est promu que s'il bat le modèle en place, signale au plus 1,5 % d'honnêtes **et** respecte les seuils d'équité.
 
 ## 7. Exigences non fonctionnelles
 
@@ -91,7 +91,7 @@ Le taux de faux positifs est retenu comme métrique d'équité car le préjudice
 - **Maintenabilité :** code modulaire, tests automatisés (pytest), intégration continue, modèles versionnés avec leurs métadonnées (métriques, empreinte des données, graine, commit Git).
 - **Évolutivité :** API sans état (plusieurs instances possibles derrière un répartiteur de charge), scoring par lot.
 - **Exploitabilité :** logs structurés, démarrage complet avec `docker compose up`, vérification de santé (healthcheck) de chaque service, limites de ressources (CPU, mémoire) déclarées pour chaque conteneur.
-- **Alertes :** une dérive significative ou l'échec d'un réentraînement déclenche automatiquement une alerte (ticket GitHub créé par le workflow et notification).
+- **Alertes :** une dérive significative déclenche automatiquement une alerte (ticket GitHub créé par le workflow de surveillance quotidienne).
 - **Communications :** la base de données n'est jamais exposée hors du réseau Docker interne. En production, l'API serait servie en HTTPS derrière un reverse proxy ; ce choix est documenté.
 - **Traçabilité des exigences :** une matrice relie chaque exigence de ce document au code et aux tests qui la vérifient.
 
