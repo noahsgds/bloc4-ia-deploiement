@@ -2,7 +2,7 @@
 # On n'embarque que ce qui sert en production : pas de notebooks, de tests ni de
 # graphiques. Image plus légère, démarrage plus rapide, moins de failles potentielles.
 # Versions identiques à requirements.txt (reproductibilité).
-fastapi==0.143.1
+fastapi==0.143.5
 uvicorn==0.54.0
 numpy==2.4.6
 pandas==3.0.6
