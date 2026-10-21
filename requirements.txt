@@ -1,5 +1,5 @@
 evidently==0.7.23
-fastapi==0.143.1
+fastapi==0.143.5
 httpx==0.28.1
 ipykernel==7.4.0
 joblib==1.6.0
