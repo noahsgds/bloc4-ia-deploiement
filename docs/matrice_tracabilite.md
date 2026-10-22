@@ -14,7 +14,7 @@
 | F4 | État du service, version et mesures du modèle | `/health`, `/model-info` | `test_api.py::test_sante_sans_cle` |
 | F5 | Journalisation de chaque prédiction | `api/repository.py` (`log_predictions`) | `test_repository.py::test_journalisation_et_droit_d_acces` |
 | F6 | Rapport de dérive (Evidently) | `monitoring/monitor.py`, `monitoring.yml` | `test_monitoring.py::test_scenarios_de_surveillance` ; exécution GitHub du 21/10 (ticket n° 24) |
-| F7 | Réentraînement, promotion si meilleur, ≤ 1,5 % de faux positifs et équitable | `retrain/retrain.py` | `test_apres_un_patch_le_nouveau_modele_est_promu`, `test_sans_changement_on_garde_le_modele_actuel` |
+| F7 | Réentraînement, promotion si meilleur, ≤ 1,5 % de faux positifs et équitable | `retrain/retrain.py`, déclenché automatiquement après alerte par `.github/workflows/monitoring.yml` | `test_apres_un_patch_le_nouveau_modele_est_promu`, `test_sans_changement_on_garde_le_modele_actuel` |
 
 ## Critères d'acceptation
 

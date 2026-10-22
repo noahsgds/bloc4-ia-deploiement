@@ -59,7 +59,7 @@ flowchart LR
 ```
 entraînement (src/model.py) → fiche JSON + échantillon de référence → CI → version publiée (CD)
       ↑                                                                          ↓
-réentraînement (retrain/) ← un humain ← ticket ← surveillance quotidienne (monitoring/)
+fusion par un humain ← Pull Request ← réentraînement automatique (retrain/) ← alerte ← surveillance quotidienne (monitoring/)
 ```
 
 ## Lien avec les autres blocs
