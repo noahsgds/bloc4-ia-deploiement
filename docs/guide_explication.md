@@ -214,8 +214,9 @@ examiner un petit échantillon tiré au hasard chaque jour.
 
 ## 12. Le réentraînement — `retrain/retrain.py` (critères 3.1, 3.2, 3.3, 3.5)
 
-**Ce que c'est :** après une alerte, on réentraîne sur les fiches récentes. L'ancien et le
-nouveau modèle passent le **même examen** sur des fiches qu'aucun n'a vues. Le nouveau ne
+**Ce que c'est :** après une alerte, le réentraînement se lance **automatiquement** (même
+workflow GitHub que la surveillance) sur les fiches récentes. L'ancien et le nouveau modèle
+passent le **même examen** sur des fiches qu'aucun n'a vues. Le nouveau ne
 remplace l'ancien que s'il respecte **3 règles** : meilleur, au plus 1,5 % d'honnêtes
 signalés, équitable.
 
@@ -231,6 +232,15 @@ par exemple la trajectoire de la visée. »
 
 **Traçabilité :** chaque version garde sa graine, l'empreinte de ses données, le commit du
 code et sa version parente. Retour arrière : `python -m retrain.retrain --rollback v1`.
+
+**Automatique, mais sous contrôle :** si le nouveau modèle passe les 3 règles, le workflow le
+pousse sur une branche et ouvre une Pull Request. Un humain relit et fusionne : comme pour
+les sanctions, la machine propose, l'humain valide.
+
+**Question probable** — *Pourquoi ne pas mettre le nouveau modèle en production tout seul ?*
+Un modèle qui signale à tort des joueurs a un impact direct sur eux : une validation humaine
+de quelques minutes est un garde-fou peu coûteux. Techniquement, il suffirait de fusionner
+automatiquement la branche.
 
 **Question probable** — *Pourquoi seulement les fiches récentes ?* Après une mise à jour,
 les anciennes statistiques décrivent un jeu qui n'existe plus.

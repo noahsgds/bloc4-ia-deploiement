@@ -3,8 +3,10 @@
 # Chaque jour, et à la demande (onglet Actions → « Surveillance du modèle » → Run workflow) :
 #   1. compare les fiches récentes aux données d'entraînement et recalcule la performance ;
 #   2. garde le rapport HTML Evidently (téléchargeable dans l'exécution) ;
-#   3. en cas d'alerte, ouvre un ticket (issue) GitHub pour l'équipe.
-# Le réentraînement est ensuite lancé par une personne : python -m retrain.retrain
+#   3. en cas d'alerte, réentraîne automatiquement un nouveau modèle (retrain/retrain.py) ;
+#   4. si ce modèle respecte les 3 règles de promotion, le pousse sur une branche et ouvre
+#      une Pull Request : la mise en production reste validée par un humain (fusion) ;
+#   5. ouvre un ticket (issue) GitHub avec les résultats de la surveillance et du réentraînement.
 #
 # Démo : les fiches récentes sont synthétiques ; le scénario choisit la situation simulée.
 
@@ -22,8 +24,9 @@ on:
         default: normal
 
 permissions:
-  contents: read
-  issues: write # ouvrir un ticket en cas d'alerte, rien d'autre
+  contents: write # pousser la branche du nouveau modèle, jamais directement sur main
+  issues: write # ouvrir un ticket en cas d'alerte
+  pull-requests: write # proposer le nouveau modèle en Pull Request
 
 jobs:
   surveiller:
@@ -50,8 +53,47 @@ jobs:
           name: rapport-${{ env.SCENARIO }}
           path: monitoring/reports/
 
-      - name: Ouvrir un ticket en cas d'alerte
+      # Réentraînement automatique, seulement en cas d'alerte
+      - name: Réentraîner en cas d'alerte
+        id: reentrainement
         run: |
           if grep -q "Statut : alerte" resultat.txt; then
-            gh issue create --title "Alerte surveillance Sentinel ($SCENARIO)" --body-file resultat.txt
+            echo "alerte=oui" >> "$GITHUB_OUTPUT"
+            python -m retrain.retrain --scenario "$SCENARIO" | tee reentrainement.txt
+            if grep -q "Nouveau modèle en production" reentrainement.txt; then
+              echo "promu=oui" >> "$GITHUB_OUTPUT"
+            fi
           fi
+
+      # Le nouveau modèle n'arrive jamais seul sur main : une branche + une Pull Request,
+      # relue puis fusionnée par un humain (même principe que pour les sanctions).
+      - name: Proposer le nouveau modèle en Pull Request
+        id: proposition
+        if: steps.reentrainement.outputs.promu == 'oui'
+        run: |
+          BRANCHE="reentrainement/${SCENARIO}-${GITHUB_RUN_ID}"
+          git config user.name "sentinel-reentrainement[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCHE"
+          git add models/
+          git commit -m "modèle : réentraînement automatique après alerte ($SCENARIO)"
+          git push origin "$BRANCHE"
+          echo "branche=$BRANCHE" >> "$GITHUB_OUTPUT"
+          gh pr create --base main --head "$BRANCHE" \
+            --title "Nouveau modèle proposé après alerte ($SCENARIO)" \
+            --body-file reentrainement.txt \
+            || echo "Pull Request non créée (option « Allow GitHub Actions to create pull requests » désactivée) : branche $BRANCHE poussée."
+
+      - name: Ouvrir un ticket en cas d'alerte
+        if: steps.reentrainement.outputs.alerte == 'oui'
+        run: |
+          {
+            echo "## Surveillance"; echo '```'; cat resultat.txt; echo '```'
+            echo "## Réentraînement automatique"; echo '```'; cat reentrainement.txt; echo '```'
+            if [ -n "${{ steps.proposition.outputs.branche }}" ]; then
+              echo "Nouveau modèle proposé sur la branche \`${{ steps.proposition.outputs.branche }}\` : à relire puis fusionner pour le mettre en production."
+            else
+              echo "Le nouveau modèle ne respecte pas les 3 règles : le modèle actuel reste en production. Analyse humaine nécessaire (nouvelles variables ?)."
+            fi
+          } > ticket.md
+          gh issue create --title "Alerte surveillance Sentinel ($SCENARIO)" --body-file ticket.md

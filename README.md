@@ -110,7 +110,7 @@ gradient boosting (0,59), retenu. Détail : `models/cheat_model_v1.json`.
 |---|---|---|
 | `ci.yml` | Chaque modification | Style (ruff), tests (avec une vraie base Postgres), construction de l'image Docker et test de démarrage |
 | `cd.yml` | Publication d'une version (`git tag v1.1.0`) | CI complète, image publiée sur `ghcr.io`, Release GitHub avec les notes du CHANGELOG |
-| `monitoring.yml` | Chaque jour, ou à la demande | Contrôle de dérive, rapport HTML, ticket GitHub en cas d'alerte |
+| `monitoring.yml` | Chaque jour, ou à la demande | Contrôle de dérive, rapport HTML ; en cas d'alerte : réentraînement automatique, Pull Request du nouveau modèle s'il passe les 3 règles, ticket GitHub |
 | `dependabot.yml` | Chaque semaine | Propose les correctifs de sécurité des dépendances |
 
 Mise en production d'une version publiée (pas de serveur de production dans ce projet,
@@ -131,6 +131,12 @@ récentes ; l'ancien et le nouveau passent le même examen sur les 30 % restants
 remplace l'ancien seulement s'il est **meilleur**, signale **au plus 1,5 % d'honnêtes** et
 reste **équitable**. Chaque version garde sa graine, l'empreinte de ses données, le commit
 du code et sa version parente ; retour arrière en une commande.
+
+**Automatisation** (`.github/workflows/monitoring.yml`) : chaque jour, la surveillance tourne
+sur GitHub Actions. En cas d'alerte, le réentraînement se lance **automatiquement** ; si le
+nouveau modèle respecte les 3 règles, il est poussé sur une branche et proposé en Pull
+Request, et un ticket résume la surveillance et le réentraînement. La mise en production
+reste validée par un humain, qui relit et fusionne : le modèle ne se remplace jamais seul.
 
 | Scénario (30 000 fiches) | Surveillance | Réentraînement |
 |---|---|---|
