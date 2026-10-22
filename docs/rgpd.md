@@ -14,7 +14,7 @@
 | Responsable de traitement | Nebula Forge (éditeur du jeu) |
 | Délégué à la protection des données | DPO de Nebula Forge (contact : dpo@nebulaforge.example) |
 | Finalité | Classer chaque jour les fiches (joueur, match) par niveau de suspicion pour que les modérateurs examinent d'abord les plus suspectes. **Aucune autre finalité** : ni marketing, ni profilage commercial, ni évaluation du niveau de jeu. |
-| Base légale | Exécution du contrat (art. 6.1.b) : les conditions d'utilisation interdisent la triche et prévoient des contrôles. Intérêt légitime (art. 6.1.f) : garantir des parties équitables aux autres joueurs (mise en balance en section 3). |
+| Base légale | Intérêt légitime (art. 6.1.f) : garantir des parties équitables aux autres joueurs (mise en balance en section 3). Les conditions d'utilisation interdisent la triche et informent les joueurs des contrôles ; elles ne sont pas la base légale, car le contrat ne couvre que ce qui est strictement nécessaire pour fournir le jeu. |
 | Personnes concernées | Joueurs d'Arena Strike (PEGI 16), **dont des mineurs de 16 et 17 ans** |
 | Catégories de données | Identifiants pseudonymes (UUID joueur et match) ; statistiques de jeu par match ; contexte du compte (rang, ancienneté, heures jouées) ; signalements reçus ; appareil et plateforme ; tranche d'âge et réglage d'accessibilité (audit seulement, voir section 2) ; score de suspicion, version du modèle ; décision du modérateur. |
 | Données exclues | Nom, pseudo, e-mail, adresse IP, messages du chat, voix, données de paiement, localisation. Aucune donnée sensible au sens de l'article 9. |
@@ -43,8 +43,8 @@
 
 Le consentement n'est pas la bonne base légale : il doit être libre et retirable à tout
 moment. Or un joueur ne peut pas « refuser » la lutte anti-triche tout en jouant en ligne,
-et un tricheur retirerait son consentement. Le traitement repose donc sur le contrat et
-l'intérêt légitime.
+et un tricheur retirerait son consentement. Le traitement repose donc sur l'intérêt
+légitime (même choix que le plan de gouvernance du bloc 1).
 
 **Mise en balance de l'intérêt légitime** : l'intérêt (parties équitables pour 200 000
 joueurs) est réel ; l'atteinte est limitée (statistiques de jeu pseudonymes, aucune donnée
