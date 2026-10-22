@@ -240,8 +240,8 @@ les anciennes statistiques décrivent un jeu qui n'existe plus.
 ## 13. RGPD — `docs/rgpd.md` (critères 5.1, 5.2)
 
 À retenir en 6 points :
-1. **Base légale** : le contrat (les règles du jeu interdisent la triche) et l'intérêt
-   légitime (parties équitables). Pas le consentement : un tricheur le retirerait.
+1. **Base légale** : l'intérêt légitime (parties équitables) ; les règles du jeu informent
+   les joueurs des contrôles. Pas le consentement : un tricheur le retirerait.
 2. **Minimisation** : identifiants pseudonymes, 13 variables de jeu, ni nom, ni e-mail, ni IP.
 3. **Article 22** : un humain décide toujours, avec les raisons affichées.
 4. **Droits** : accès et effacement par l'API ; effacement différé si une sanction est

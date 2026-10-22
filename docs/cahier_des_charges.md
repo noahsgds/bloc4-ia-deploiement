@@ -97,7 +97,7 @@ Le taux de faux positifs est retenu comme métrique d'équité car le préjudice
 
 ## 8. RGPD et loi Informatique et Libertés
 
-- **Base légale :** exécution du contrat (les conditions d'utilisation interdisent la triche) et intérêt légitime (garantir des parties équitables).
+- **Base légale :** intérêt légitime (garantir des parties équitables). Les conditions d'utilisation interdisent la triche et informent les joueurs de la détection.
 - **Pas de bannissement automatique :** revue humaine systématique ; explication de la décision ; procédure de contestation.
 - **Mineurs :** jeu PEGI 16, joueurs de 16-17 ans présents (consentement numérique à 15 ans en France). Explications compréhensibles, aucun profilage marketing à partir de ces données.
 - **Droits des personnes :** `GET` et `DELETE /players/{id}/data` (accès et effacement), protégés et journalisés. Exception : les éléments justifiant un bannissement en cours de contestation sont conservés jusqu'à la fin du litige.
