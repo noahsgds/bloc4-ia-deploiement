@@ -1,0 +1,225 @@
+{
+  "version": "v2",
+  "created_at": "2026-10-28T11:25:03+00:00",
+  "seed": 42,
+  "git_commit": "9496dae",
+  "sklearn_version": "1.9.1",
+  "features": [
+    "accuracy",
+    "headshot_rate",
+    "kd_ratio",
+    "kills_per_min",
+    "damage_per_round",
+    "avg_reaction_ms",
+    "kills_through_smoke_ratio",
+    "rank_tier",
+    "account_age_days",
+    "hours_played_total",
+    "reports_received",
+    "input_device",
+    "platform"
+  ],
+  "model_name": "regression_logistique",
+  "threshold": 0.8342724949653789,
+  "validation_pr_auc": {
+    "regression_logistique": 0.559,
+    "gradient_boosting": 0.4894
+  },
+  "test_metrics": {
+    "roc_auc": 0.8823,
+    "pr_auc": 0.6018,
+    "precision_top": 1.0,
+    "recall": 0.5156,
+    "false_positive_rate": 0.0057,
+    "n_samples": 4149
+  },
+  "baseline_test_metrics": {
+    "roc_auc": 0.6468,
+    "pr_auc": 0.099,
+    "precision_top": 0.2927,
+    "recall": 0.0938,
+    "false_positive_rate": 0.0062,
+    "n_samples": 4149
+  },
+  "fairness": {
+    "input_device": {
+      "fpr_by_group": {
+        "clavier_souris": 0.008,
+        "manette": 0.002
+      },
+      "gap": 0.006,
+      "passed": true
+    },
+    "platform": {
+      "fpr_by_group": {
+        "console": 0.0007,
+        "pc": 0.0084
+      },
+      "gap": 0.0077,
+      "passed": true
+    },
+    "accessibility_mode": {
+      "fpr_by_group": {
+        "False": 0.0052,
+        "True": 0.0142
+      },
+      "gap": 0.009,
+      "passed": true
+    },
+    "age_band": {
+      "fpr_by_group": {
+        "16-17": 0.0116,
+        "18-24": 0.0028,
+        "25-34": 0.0018,
+        "35+": 0.0161
+      },
+      "gap": 0.0143,
+      "passed": true
+    }
+  },
+  "acceptance": {
+    "passed": true,
+    "details": {
+      "roc_auc": true,
+      "pr_auc": true,
+      "precision_top": true,
+      "recall": true,
+      "false_positive_rate": true,
+      "fairness": true
+    }
+  },
+  "explain_info": {
+    "reference_by_rank": {
+      "1": {
+        "accuracy": 0.228,
+        "headshot_rate": 0.175,
+        "kd_ratio": 0.785,
+        "kills_per_min": 0.56,
+        "damage_per_round": 100.0,
+        "avg_reaction_ms": 285.9,
+        "kills_through_smoke_ratio": 0.02,
+        "rank_tier": 1.0,
+        "account_age_days": 275.0,
+        "hours_played_total": 242.9,
+        "reports_received": 0.0
+      },
+      "2": {
+        "accuracy": 0.257,
+        "headshot_rate": 0.214,
+        "kd_ratio": 0.91,
+        "kills_per_min": 0.64,
+        "damage_per_round": 110.9,
+        "avg_reaction_ms": 271.8,
+        "kills_through_smoke_ratio": 0.021,
+        "rank_tier": 2.0,
+        "account_age_days": 256.0,
+        "hours_played_total": 215.7,
+        "reports_received": 0.0
+      },
+      "3": {
+        "accuracy": 0.275,
+        "headshot_rate": 0.24,
+        "kd_ratio": 0.98,
+        "kills_per_min": 0.71,
+        "damage_per_round": 117.6,
+        "avg_reaction_ms": 263.4,
+        "kills_through_smoke_ratio": 0.02,
+        "rank_tier": 3.0,
+        "account_age_days": 286.0,
+        "hours_played_total": 224.4,
+        "reports_received": 0.0
+      },
+      "4": {
+        "accuracy": 0.291,
+        "headshot_rate": 0.265,
+        "kd_ratio": 1.06,
+        "kills_per_min": 0.78,
+        "damage_per_round": 127.2,
+        "avg_reaction_ms": 249.0,
+        "kills_through_smoke_ratio": 0.02,
+        "rank_tier": 4.0,
+        "account_age_days": 315.0,
+        "hours_played_total": 254.4,
+        "reports_received": 0.0
+      },
+      "5": {
+        "accuracy": 0.309,
+        "headshot_rate": 0.297,
+        "kd_ratio": 1.15,
+        "kills_per_min": 0.84,
+        "damage_per_round": 134.6,
+        "avg_reaction_ms": 240.45,
+        "kills_through_smoke_ratio": 0.021,
+        "rank_tier": 5.0,
+        "account_age_days": 292.0,
+        "hours_played_total": 226.2,
+        "reports_received": 0.0
+      },
+      "6": {
+        "accuracy": 0.324,
+        "headshot_rate": 0.329,
+        "kd_ratio": 1.23,
+        "kills_per_min": 0.92,
+        "damage_per_round": 144.0,
+        "avg_reaction_ms": 226.9,
+        "kills_through_smoke_ratio": 0.019,
+        "rank_tier": 6.0,
+        "account_age_days": 283.0,
+        "hours_played_total": 225.3,
+        "reports_received": 1.0
+      },
+      "7": {
+        "accuracy": 0.337,
+        "headshot_rate": 0.354,
+        "kd_ratio": 1.29,
+        "kills_per_min": 0.98,
+        "damage_per_round": 151.65,
+        "avg_reaction_ms": 213.85,
+        "kills_through_smoke_ratio": 0.02,
+        "rank_tier": 7.0,
+        "account_age_days": 223.0,
+        "hours_played_total": 179.1,
+        "reports_received": 1.0
+      },
+      "8": {
+        "accuracy": 0.366,
+        "headshot_rate": 0.39,
+        "kd_ratio": 1.44,
+        "kills_per_min": 1.04,
+        "damage_per_round": 160.8,
+        "avg_reaction_ms": 210.15,
+        "kills_through_smoke_ratio": 0.024,
+        "rank_tier": 8.0,
+        "account_age_days": 258.0,
+        "hours_played_total": 248.4,
+        "reports_received": 1.0
+      }
+    },
+    "background_mean": [
+      -0.0,
+      0.0,
+      0.0,
+      0.0,
+      -0.0,
+      0.0,
+      0.0,
+      0.0,
+      -0.0,
+      -0.0,
+      0.0,
+      0.637824,
+      0.362176,
+      0.320709,
+      0.679291
+    ]
+  },
+  "data": {
+    "fingerprint": "82a6a68cfcc679a3",
+    "n_rows": 20891,
+    "period": [
+      "2026-10-01",
+      "2026-11-29"
+    ]
+  },
+  "parent_version": "v1"
+}
