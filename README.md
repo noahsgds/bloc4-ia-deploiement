@@ -8,6 +8,10 @@ suspicion** et 3 raisons en français, pour examiner d'abord les cas les plus su
 > Projet réalisé pour la certification « Architecte en Intelligence Artificielle » (RNCP, niveau 7).
 > Toutes les données sont synthétiques.
 
+**Vidéo de démonstration (5 min) :** [Sentinel en production](https://www.loom.com/share/3cfc283ea2c64cd3a1725822ce961255)
+— API de prédiction et console, CI/CD, surveillance de la dérive, réentraînement automatique
+proposé en Pull Request.
+
 | Document | Contenu |
 |---|---|
 | [Cahier des charges](docs/cahier_des_charges.md) | Besoin, données, métriques, exigences, critères d'acceptation |
