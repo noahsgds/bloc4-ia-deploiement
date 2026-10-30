@@ -122,6 +122,15 @@ def test_console_protegee_par_en_tetes_de_securite(client):
     assert "default-src 'self'" in response.headers["content-security-policy"]
 
 
+def test_page_docs_affichee_mais_console_reste_stricte(client):
+    """/docs peut charger Swagger UI ; la console, elle, n'autorise aucun script externe."""
+    docs = client.get("/docs")
+    assert docs.status_code == 200
+    assert "https://cdn.jsdelivr.net" in docs.headers["content-security-policy"]
+    console = client.get("/console/")
+    assert "cdn.jsdelivr.net" not in console.headers["content-security-policy"]
+
+
 def test_base_en_panne_le_service_repond_quand_meme(client, monkeypatch):
     def broken(rows):
         raise ConnectionError("base indisponible")
