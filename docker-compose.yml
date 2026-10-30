@@ -68,6 +68,10 @@ services:
         condition: service_healthy
       api:
         condition: service_started # l'image est construite par le service api
+    # L'image hérite du contrôle de santé de l'API (appel à /health), sans objet ici :
+    # la purge ne sert pas de requêtes, elle serait marquée « unhealthy » à tort.
+    healthcheck:
+      disable: true
     restart: unless-stopped
     read_only: true
     tmpfs:
