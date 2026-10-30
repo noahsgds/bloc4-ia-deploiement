@@ -76,6 +76,16 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "no-referrer",
 }
 
+# La page /docs (générée par FastAPI) charge Swagger UI depuis cdn.jsdelivr.net et lance un
+# petit script intégré à la page : la règle stricte ci-dessus l'afficherait vide. On autorise
+# ces deux exceptions sur cette page seulement ; la console garde la règle stricte.
+DOCS_PATHS = ("/docs", "/docs/oauth2-redirect")
+DOCS_CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; "
+    "frame-ancestors 'none'"
+)
+
 # Messages d'erreur en français pour les erreurs de format les plus courantes.
 ERRORS_FR = {
     "missing": "champ obligatoire manquant",
@@ -120,6 +130,8 @@ def create_app(repository=None, models_dir=MODELS_DIR) -> FastAPI:
         duration = round((time.perf_counter() - start) * 1000, 1)
         log("requête", route=route, status=response.status_code, ms=duration)
         response.headers.update(SECURITY_HEADERS)
+        if request.url.path in DOCS_PATHS:
+            response.headers["Content-Security-Policy"] = DOCS_CSP
         return response
 
     @app.exception_handler(RequestValidationError)
